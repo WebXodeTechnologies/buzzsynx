@@ -2,8 +2,9 @@
 
 **Document:** `02-system-workflow.md`
 **Project:** Buzzsynx
-**Version:** `v0.1`
-**Status:** Draft — Workflow Baseline
+**Document Version:** `v1.0`
+**Document Status:** Workflow Baseline
+**Initial Product Focus:** Supermarket / Grocery Retail
 
 ---
 
@@ -11,38 +12,144 @@
 
 This document defines the functional and technical workflows of Buzzsynx.
 
-It describes how users, tenants, products, inventory, purchases, sales, payments, analytics, AI, and industry-specific capabilities interact throughout the system.
+It describes how the major components of the platform interact across:
 
-The workflow design is based on a shared business core with configurable industry capabilities.
+* Tenant onboarding
+* Store / branch management
+* Authentication
+* Users and memberships
+* Products
+* Purchasing
+* Inventory
+* POS
+* Sales
+* Payments
+* Invoices
+* Customers
+* Returns
+* Analytics
+* AI
+* Notifications
+* Background processing
+* Industry capabilities
+
+Buzzsynx is architected as a **multi-tenant modular monolith** with a shared business core and configurable industry capabilities.
+
+The first complete business workflow will be implemented for:
+
+> **Supermarket / Grocery Retail**
+
+Other industries will reuse the shared workflows and introduce additional capabilities progressively.
 
 ---
 
-# 2. System Actors
+# 2. Workflow Principles
 
-Buzzsynx supports multiple types of users.
+Buzzsynx workflows follow these principles:
+
+1. PostgreSQL is the transactional source of truth.
+2. Every tenant-owned operation is tenant-scoped.
+3. Store-level operations are store-scoped where applicable.
+4. Authentication and authorization happen before business operations.
+5. Critical business operations are transactional.
+6. Deterministic business rules control financial and inventory state.
+7. Redis provides speed and temporary state, not transactional authority.
+8. BullMQ handles asynchronous processing.
+9. AI provides intelligence and recommendations, not transactional authority.
+10. Analytics are derived from business transactions.
+11. Non-critical processing must not block critical business transactions.
+12. Important business actions must be auditable.
+13. Industry-specific functionality extends shared workflows rather than duplicating them.
+
+---
+
+# 3. System Actors
+
+Buzzsynx operates across three primary actor categories.
 
 ```text
-Platform
+Buzzsynx Platform
 │
-├── Tenant
+├── Super Admin
+│
+├── Tenant / Business
+│   │
 │   ├── Owner
-│   ├── Admin
-│   ├── Manager
-│   ├── Staff
-│   └── Cashier
+│   ├── Admin / Manager
+│   ├── Cashier
+│   ├── Accountant
+│   └── Store Staff
 │
-└── System
+└── System Processes
     ├── Background Workers
-    ├── AI Engine
-    ├── Notification Engine
+    ├── AI Processing
+    ├── Notification Workers
     └── Scheduled Jobs
 ```
 
-The exact roles and permissions will be defined in the authorization design.
+Authorization is permission-based.
+
+A user's effective access depends on:
+
+```text
+User
+ ↓
+Membership
+ ↓
+Tenant
+ ↓
+Store Scope
+ ↓
+Role
+ ↓
+Permissions
+ ↓
+Capabilities
+```
 
 ---
 
-# 3. Overall Business Lifecycle
+# 4. Tenant and Store Hierarchy
+
+The business hierarchy is:
+
+```text
+Super Admin
+    ↓
+Tenant / Business
+    ↓
+Store / Branch
+    ↓
+Users / Memberships
+```
+
+Example:
+
+```text
+ABC Supermarket
+│
+├── Main Store
+│   ├── Manager
+│   ├── Cashier
+│   └── Store Staff
+│
+└── Branch Store
+    ├── Manager
+    ├── Cashier
+    └── Store Staff
+```
+
+A tenant may operate:
+
+* One store
+* Multiple stores
+* Multiple branches in the future
+
+The MVP may begin with a single store while preserving the architecture required for multiple stores.
+
+---
+
+# 5. Overall Business Lifecycle
 
 The primary business lifecycle is:
 
@@ -51,7 +158,9 @@ Tenant
    ↓
 Business Configuration
    ↓
-Products / Services
+Store Configuration
+   ↓
+Products
    ↓
 Purchasing
    ↓
@@ -71,16 +180,20 @@ Analytics
    ↓
 AI Insights
    ↓
-Automation / Notifications
+Notifications / Recommendations
 ```
 
-This lifecycle forms the foundation of Buzzsynx.
+Not every step is synchronous.
+
+The critical transaction ends when the authoritative business records have been successfully committed.
+
+Analytics, AI and notifications may continue asynchronously.
 
 ---
 
-# 4. Tenant Onboarding Workflow
+# 6. Tenant Onboarding Workflow
 
-A new business begins by creating a tenant.
+A new business begins by creating an account and tenant.
 
 ```text
 User
@@ -93,13 +206,15 @@ Create Tenant
  ↓
 Select Industry
  ↓
+Create Initial Store
+ ↓
 Configure Business
  ↓
-Enable Capabilities
+Initialize Capabilities
  ↓
-Create Owner
+Create Owner Membership
  ↓
-Initialize Tenant Data
+Initialize Default Settings
  ↓
 Dashboard
 ```
@@ -107,82 +222,76 @@ Dashboard
 Example:
 
 ```text
-User selects:
-
-Business Name: ABC Medicals
-Industry: PHARMACY
+Business Name: ABC Supermarket
+Industry: SUPERMARKET
+Store: Main Branch
 ```
 
 Buzzsynx initializes:
 
 ```text
 Tenant
- ├── Industry = PHARMACY
- ├── Owner
- ├── Default Roles
- ├── Default Settings
- ├── Enabled Capabilities
- └── Initial Configuration
+├── Business Information
+├── Industry
+├── Owner Membership
+├── Initial Store
+├── Default Settings
+├── Default Permissions
+└── Enabled Capabilities
 ```
+
+The tenant can begin its setup without requiring platform approval to block normal onboarding.
+
+Platform administration may subsequently review, manage, suspend or archive the tenant.
 
 ---
 
-# 5. Authentication Workflow
+# 7. Authentication Workflow
 
 ```text
 User
  ↓
 Login
  ↓
-Authentication
+Authenticate Identity
  ↓
-Session / Token
+Create / Validate Session
  ↓
 Identify User
  ↓
-Identify Tenant
+Resolve Membership
  ↓
-Load Role
+Resolve Tenant
+ ↓
+Resolve Store Scope
  ↓
 Load Permissions
  ↓
 Load Capabilities
  ↓
-Access Dashboard
+Access Application
 ```
 
-Every protected request must establish:
-
-```text
-User
- +
-Tenant
- +
-Role
- +
-Permissions
- +
-Capabilities
-```
-
-before accessing protected business functionality.
+Every protected request must establish the user's effective access context before business operations are executed.
 
 ---
 
-# 6. Tenant Resolution Workflow
+# 8. Tenant Resolution Workflow
 
-For every authenticated request:
+For every protected request:
 
 ```text
-Request
+HTTP Request
  ↓
 Authentication
  ↓
 Identify User
  ↓
+Resolve Membership
+ ↓
 Resolve Tenant
  ↓
-Load Tenant Configuration
+Resolve Store Scope
  ↓
 Load Permissions
  ↓
@@ -191,18 +300,64 @@ Load Capabilities
 Continue Request
 ```
 
-The backend must determine the tenant from trusted authentication/context information.
+The backend must determine the tenant from trusted authentication and membership context.
 
-Client-provided tenant identifiers must not be treated as authoritative.
+Client-provided tenant identifiers must never be treated as authoritative.
+
+The same principle applies to store / branch identifiers.
 
 ---
 
-# 7. Product Creation Workflow
+# 9. Authorization Workflow
+
+Authorization occurs before business logic executes.
+
+```text
+Request
+ ↓
+Authentication
+ ↓
+Tenant Resolution
+ ↓
+Membership Verification
+ ↓
+Store Scope
+ ↓
+Permission Check
+ ↓
+Capability Check
+ ↓
+Input Validation
+ ↓
+Business Operation
+```
+
+For example:
+
+```text
+Cashier
+ ↓
+Tenant A
+ ↓
+Store A
+ ↓
+POS Permission
+ ↓
+SALE_CREATE
+ ↓
+Create Sale
+```
+
+A cashier assigned to Store A must not automatically gain access to Store B.
+
+---
+
+# 10. Product Creation Workflow
 
 The product workflow is shared across industries.
 
 ```text
-User
+Authorized User
  ↓
 Open Products
  ↓
@@ -212,18 +367,20 @@ Enter Product Information
  ↓
 Select Category
  ↓
-Configure Industry Attributes
- ↓
 Configure Pricing
  ↓
-Configure Inventory
+Configure Tax
  ↓
-Save
+Configure Inventory Settings
  ↓
-Product Created
+Apply Industry Capabilities
+ ↓
+Validate
+ ↓
+Save Product
 ```
 
-Common information:
+Common information may include:
 
 ```text
 Name
@@ -237,130 +394,125 @@ Tax
 Status
 ```
 
-Industry-specific information is added through capabilities.
+Industry-specific attributes are added only when the relevant capability is enabled.
 
 ---
 
-# 8. Pharmacy Product Workflow
+# 11. Supermarket Product Workflow
+
+The first complete implementation focuses on supermarket / grocery products.
 
 Example:
 
 ```text
-Medicine
+Product
  ↓
-Product Information
+Name
  ↓
-Manufacturer
+SKU / Barcode
  ↓
-Batch Information
+Category
  ↓
-Expiry Information
+Unit
  ↓
-Pricing
+Cost Price
  ↓
-Stock
+Selling Price
+ ↓
+Tax
+ ↓
+Stock Configuration
+ ↓
+Save
 ```
 
-Possible data:
+Possible grocery-specific capabilities include:
 
 ```text
-Medicine
- ├── Name
- ├── SKU
- ├── Barcode
- ├── Manufacturer
- ├── Batch
- ├── Expiry
- ├── MRP
- └── Stock
+BARCODE
+WEIGHT_BASED_PRODUCTS
+BULK_PRODUCTS
+STOCK_TRACKING
 ```
+
+Additional capabilities can be introduced later.
 
 ---
 
-# 9. Clothing Product Workflow
+# 12. Future Industry Product Workflows
 
-Clothing products may contain variants.
+Future industries may extend the common product workflow.
+
+### Pharmacy
 
 ```text
 Product
  ↓
-Create Variants
+Medicine Attributes
+ ↓
+Manufacturer
+ ↓
+Batch
+ ↓
+Expiry
+ ↓
+Pricing
+ ↓
+Inventory
+```
+
+### Clothing
+
+```text
+Product
+ ↓
+Variant Configuration
  ↓
 Size
  ↓
 Color
  ↓
-SKU
+Variant SKU
  ↓
-Price
+Variant Pricing
  ↓
-Stock
+Inventory
 ```
 
-Example:
-
-```text
-T-Shirt
-
-Variants:
-├── S / Black
-├── M / Black
-├── L / Black
-├── S / White
-├── M / White
-└── L / White
-```
-
-Each variant can maintain independent inventory.
-
----
-
-# 10. Restaurant Product Workflow
-
-Restaurants use menu items and ingredients.
+### Restaurant
 
 ```text
 Ingredient
  ↓
-Inventory
-
 Recipe
  ↓
-Recipe Items
- ↓
 Menu Item
+ ↓
+Ingredient Inventory
  ↓
 POS
 ```
 
-Example:
-
-```text
-Chicken Biriyani
- ├── Rice
- ├── Chicken
- ├── Onion
- └── Masala
-```
-
-Selling a menu item results in consumption of the configured ingredients.
+These workflows are capability extensions and are not required to be fully implemented in the first supermarket release.
 
 ---
 
-# 11. Purchasing Workflow
+# 13. Purchasing Workflow
 
-The common purchasing workflow is:
+The purchasing workflow begins with a supplier relationship.
 
 ```text
 Supplier
  ↓
 Create Purchase
  ↓
-Add Products
+Select Products
  ↓
 Enter Quantities
  ↓
 Enter Cost
+ ↓
+Review Purchase
  ↓
 Confirm Purchase
  ↓
@@ -370,65 +522,72 @@ Create Stock Movements
  ↓
 Update Inventory
  ↓
-Update Purchase Records
- ↓
-Analytics
+Update Purchase Status
 ```
+
+Purchasing and receiving should be treated as related but distinct business events.
 
 ---
 
-# 12. Purchase Receiving Workflow
+# 14. Purchase Receiving Workflow
 
-Receiving stock is a separate business event.
+Receiving stock is the point at which purchased inventory enters the business inventory flow.
 
 ```text
-Purchase Order
+Purchase
  ↓
 Goods Received
  ↓
-Verify Items
+Verify Products
  ↓
 Verify Quantity
  ↓
 Verify Cost
  ↓
+Capture Industry Attributes
+ ↓
 Create Stock Movement
  ↓
-Increase Available Stock
+Update Inventory
  ↓
-Update Purchase Status
+Update Purchase / Receiving Status
 ```
 
-For industries such as pharmacy, additional information may be captured:
+For supported industries, receiving may capture:
 
 ```text
 Batch
 Expiry
 MRP
 Manufacturer
+Variant
 ```
+
+Receiving must be authorized and auditable.
 
 ---
 
-# 13. Inventory Workflow
+# 15. Inventory Workflow
 
 Inventory is maintained through stock movements.
 
 ```text
 Stock Event
  ↓
-Validate Event
+Validate Request
+ ↓
+Check Tenant / Store Scope
  ↓
 Create Stock Movement
  ↓
-Update Inventory
+Update Inventory State
  ↓
 Record Audit Information
  ↓
-Trigger Related Jobs
+Trigger Required Async Processing
 ```
 
-Possible stock events:
+Possible movement types include:
 
 ```text
 PURCHASE
@@ -443,21 +602,96 @@ ADJUSTMENT
 Example:
 
 ```text
-Purchase +100
-Sale     -10
-Return    +2
-Damage    -1
-----------------
-Current   91
+Purchase      +100
+Sale           -10
+Return          +2
+Damage          -1
+------------------
+Current Stock   91
 ```
 
-The inventory movement history provides an auditable record of stock changes.
+The stock movement history provides the auditable record of inventory changes.
 
 ---
 
-# 14. POS Workflow
+# 16. Inventory Adjustment Workflow
 
-The POS workflow is designed for fast business transactions.
+Only authorized users may perform manual inventory adjustments.
+
+```text
+Authorized User
+ ↓
+Request Adjustment
+ ↓
+Select Store
+ ↓
+Select Product
+ ↓
+Enter Actual Quantity / Adjustment
+ ↓
+Enter Reason
+ ↓
+Validate Permission
+ ↓
+Create Adjustment Movement
+ ↓
+Update Inventory
+ ↓
+Create Audit Record
+```
+
+Possible reasons:
+
+```text
+DAMAGE
+LOSS
+COUNT_CORRECTION
+EXPIRY
+DATA_CORRECTION
+OTHER
+```
+
+Adjustments must not silently overwrite historical inventory information.
+
+---
+
+# 17. Stock Transfer Workflow
+
+Multi-store support requires controlled stock transfers.
+
+```text
+Source Store
+ ↓
+Create Transfer Request
+ ↓
+Select Products
+ ↓
+Select Quantity
+ ↓
+Validate Available Stock
+ ↓
+Approve / Confirm Transfer
+ ↓
+Dispatch Stock
+ ↓
+Transfer In Transit
+ ↓
+Receive at Destination Store
+ ↓
+Create Destination Stock Movement
+ ↓
+Complete Transfer
+```
+
+Stock transfers should maintain clear source and destination store references.
+
+This capability may be introduced after the initial single-store MVP.
+
+---
+
+# 18. POS Workflow
+
+The POS workflow is designed for fast retail transactions.
 
 ```text
 Cashier
@@ -472,52 +706,101 @@ Select Variant if Required
  ↓
 Enter Quantity
  ↓
+Validate Availability
+ ↓
 Apply Discount
  ↓
 Calculate Tax
  ↓
 Calculate Total
  ↓
-Select Payment
+Select Payment Method
  ↓
 Confirm Sale
 ```
 
+The final transaction must be validated again on the backend.
+
+Frontend calculations must never be treated as authoritative.
+
 ---
 
-# 15. POS Sale Processing Workflow
+# 19. POS Sale Processing Workflow
 
-Once the cashier confirms the sale:
+When the cashier confirms a sale:
 
 ```text
-POS
+POS Request
+ ↓
+Authenticate
+ ↓
+Resolve Tenant
+ ↓
+Resolve Store
+ ↓
+Validate Permission
  ↓
 Validate Cart
  ↓
+Validate Products
+ ↓
+Validate Prices / Discounts / Tax
+ ↓
 Validate Stock
+ ↓
+Begin Transaction
  ↓
 Create Sale
  ↓
 Create Sale Items
  ↓
-Process Payment
+Record Payment
  ↓
 Create Stock Movements
  ↓
-Update Inventory
+Update Inventory State
  ↓
-Generate Invoice
+Create Invoice Record
  ↓
 Commit Transaction
 ```
 
-Critical operations should be handled transactionally.
+The transaction should only be considered successfully completed after the authoritative records are committed.
 
 ---
 
-# 16. Payment Workflow
+# 20. POS Concurrency and Stock Protection
 
-Supported payment types may include:
+Multiple cashiers may attempt to sell the same product simultaneously.
+
+Therefore, stock validation must happen against authoritative database state.
+
+Conceptually:
+
+```text
+Cashier A ─┐
+           ├──> PostgreSQL
+Cashier B ─┘
+```
+
+The system must prevent impossible states such as:
+
+```text
+Available Stock: 5
+
+Cashier A sells 5
+Cashier B sells 5
+
+Final Stock: -5
+```
+
+The exact concurrency strategy belongs in the database design and implementation.
+
+---
+
+# 21. Payment Workflow
+
+Payment methods may include:
 
 ```text
 Cash
@@ -527,7 +810,7 @@ Credit
 Split Payment
 ```
 
-Workflow:
+The payment workflow is:
 
 ```text
 Sale
@@ -536,42 +819,79 @@ Calculate Amount
  ↓
 Select Payment Method
  ↓
-Process / Record Payment
+Validate Payment
  ↓
-Validate Result
+Record Payment
  ↓
-Create Payment Record
- ↓
-Update Sale Status
+Update Sale Payment State
 ```
 
-External payment integrations will be introduced separately where required.
+For manual payment methods such as cash:
+
+```text
+Payment
+ ↓
+Record Confirmation
+```
+
+For external payment providers:
+
+```text
+Payment Request
+ ↓
+Payment Provider
+ ↓
+Provider Response / Webhook
+ ↓
+Verify Result
+ ↓
+Record Payment
+ ↓
+Update Sale
+```
+
+External payment confirmation must not rely solely on a client-side success response.
 
 ---
 
-# 17. Invoice Workflow
+# 22. Invoice Workflow
+
+An invoice is associated with a completed sale.
 
 ```text
-Completed Sale
+Sale Transaction
  ↓
-Generate Invoice
+Create Invoice Record
  ↓
 Assign Invoice Number
  ↓
 Store Invoice Data
  ↓
-Generate Invoice Document
+Commit Transaction
  ↓
-Make Available to User
+Generate / Render Invoice Document
+ ↓
+Make Invoice Available
 ```
 
-Invoice generation must be traceable to the corresponding sale and tenant.
+The invoice record must remain traceable to:
+
+```text
+Tenant
+Store
+Sale
+Customer (if applicable)
+Payment
+Invoice Number
+```
+
+Document generation may be asynchronous when appropriate.
 
 ---
 
-# 18. Customer Workflow
+# 23. Customer Workflow
 
-Customer workflow:
+Customer information may be associated with a sale.
 
 ```text
 Customer
@@ -582,12 +902,14 @@ Create Sale
  ↓
 Associate Customer
  ↓
-Record Purchase History
+Complete Transaction
  ↓
-Update Customer Analytics
+Update Purchase History
+ ↓
+Generate Derived Analytics
 ```
 
-Customer information may include:
+Possible customer information:
 
 ```text
 Name
@@ -599,11 +921,13 @@ Credit Balance
 Payment History
 ```
 
+Customer analytics should be derived from authoritative transactional data.
+
 ---
 
-# 19. Returns Workflow
+# 24. Returns Workflow
 
-A return must reference the original transaction where applicable.
+Returns must reference the original sale where applicable.
 
 ```text
 Customer
@@ -612,76 +936,53 @@ Return Request
  ↓
 Identify Original Sale
  ↓
-Validate Return
+Validate Customer / Sale
  ↓
-Select Items
+Select Return Items
+ ↓
+Validate Return Quantity
  ↓
 Calculate Refund / Credit
  ↓
+Begin Transaction
+ ↓
 Create Return
  ↓
-Create Stock Movement
+Create Return Stock Movement
  ↓
 Update Inventory
  ↓
-Update Payment / Credit
+Record Refund / Credit
  ↓
-Update Sale
+Update Sale State
+ ↓
+Commit Transaction
 ```
 
-Industry-specific return rules may be introduced through capabilities.
+The system must prevent:
+
+* Returning more than originally sold
+* Returning already-returned quantities
+* Unauthorized refunds
+* Cross-tenant returns
+* Cross-store returns where not permitted
+
+Industry-specific return rules can be introduced through capabilities.
 
 ---
 
-# 20. Inventory Adjustment Workflow
-
-Authorized users can make inventory adjustments.
-
-```text
-User
- ↓
-Request Adjustment
- ↓
-Select Product
- ↓
-Enter Actual Quantity
- ↓
-Enter Reason
- ↓
-Validate Permission
- ↓
-Create Adjustment Movement
- ↓
-Update Inventory
- ↓
-Create Audit Record
-```
-
-Adjustment reasons may include:
-
-```text
-DAMAGE
-LOSS
-COUNT_CORRECTION
-EXPIRY
-DATA_CORRECTION
-OTHER
-```
-
----
-
-# 21. Analytics Workflow
+# 25. Analytics Workflow
 
 Business transactions generate analytical information.
 
 ```text
 Business Transaction
  ↓
-Transactional Database
+PostgreSQL
  ↓
 Analytics Processing
  ↓
-Aggregated Data
+Aggregated / Derived Data
  ↓
 Dashboard / Reports
 ```
@@ -694,29 +995,32 @@ Revenue
 Profit
 Products
 Inventory
-Customers
 Purchases
+Customers
 Payments
+Stock Movement
 ```
 
-Heavy analytical processing should not unnecessarily block transactional requests.
+Analytics must not become the authoritative source for transactional state.
+
+Heavy analytical processing should not unnecessarily block POS, inventory or payment operations.
 
 ---
 
-# 22. AI Workflow
+# 26. AI Workflow
 
-AI will operate on processed business information.
+AI operates on validated business information.
 
 ```text
 Business Transactions
  ↓
-Data Processing
+Validated Data
  ↓
-Analytics
+Analytics / Deterministic Signals
  ↓
-Feature Extraction
+Feature Preparation
  ↓
-AI Engine
+AI Processing
  ↓
 Insight / Prediction
  ↓
@@ -741,9 +1045,75 @@ Demand Analysis
 Reorder Recommendation
 ```
 
+AI outputs should be treated as recommendations unless a future controlled automation workflow explicitly defines otherwise.
+
 ---
 
-# 23. Dead Stock Detection Workflow
+# 27. AI Decision Boundary
+
+AI must not replace authoritative business rules.
+
+For example:
+
+```text
+Inventory Engine
+ ↓
+Current Stock = 8
+```
+
+AI may then produce:
+
+```text
+"Based on recent sales velocity,
+this product may require replenishment."
+```
+
+The AI must not directly change:
+
+* Inventory quantity
+* Payment amount
+* Tax calculation
+* Sale status
+* User permissions
+* Financial records
+
+Critical changes must pass through normal application business logic.
+
+---
+
+# 28. Low Stock / Reorder Workflow
+
+```text
+Inventory
+ ↓
+Current Stock
+ ↓
+Minimum Stock Level
+ ↓
+Sales Velocity
+ ↓
+Supplier Lead Time
+ ↓
+Reorder Analysis
+ ↓
+Recommendation
+ ↓
+Optional Notification
+```
+
+Example:
+
+```text
+Product: ABC
+Current Stock: 8
+Suggested Reorder: 40
+```
+
+The recommendation is informational unless the user explicitly initiates a controlled purchasing workflow.
+
+---
+
+# 29. Dead Stock Workflow
 
 ```text
 Inventory Data
@@ -763,64 +1133,22 @@ Potential Dead Stock
 Business Insight
 ```
 
-Example output:
+Example:
 
 ```text
-Product:
-Product X
-
-Current Stock:
-120
-
-Sales in Last 90 Days:
-8
-
-Status:
-Potential Dead Stock
+Product: Product X
+Current Stock: 120
+Sales in Last 90 Days: 8
+Status: Potential Dead Stock
 ```
 
-The exact thresholds and intelligence models will be defined separately.
+Thresholds should be configurable and documented separately from the workflow.
 
 ---
 
-# 24. Low Stock / Reorder Workflow
+# 30. Expiry Workflow
 
-```text
-Inventory
- ↓
-Current Stock
- ↓
-Minimum Stock Level
- ↓
-Sales Velocity
- ↓
-Supplier Lead Time
- ↓
-Reorder Analysis
- ↓
-Recommendation
- ↓
-Notification
-```
-
-Potential result:
-
-```text
-Product:
-ABC
-
-Current Stock:
-8
-
-Recommended Reorder:
-40 units
-```
-
----
-
-# 25. Expiry Workflow
-
-For industries that support expiry tracking:
+Expiry tracking is capability-dependent.
 
 ```text
 Batch
@@ -838,13 +1166,19 @@ Create Alert
 Notify Authorized User
 ```
 
-This is particularly relevant to pharmacy and selected food-related businesses.
+This is especially relevant to:
+
+* Pharmacy
+* Food-related businesses
+* Other businesses where expiry tracking is enabled
+
+Expiry processing must remain tenant- and store-aware.
 
 ---
 
-# 26. Notification Workflow
+# 31. Notification Workflow
 
-Notifications can be generated by business events.
+Notifications may originate from business events or scheduled jobs.
 
 ```text
 Business Event
@@ -855,13 +1189,13 @@ BullMQ
  ↓
 Notification Worker
  ↓
-Determine Recipient
+Resolve Tenant / Recipient
  ↓
 Determine Channel
  ↓
 Send Notification
  ↓
-Record Status
+Record Delivery Status
 ```
 
 Potential channels:
@@ -873,13 +1207,15 @@ SMS
 WhatsApp
 ```
 
-External integrations will be added progressively.
+External providers will be integrated progressively.
+
+Notification failure must not roll back a completed business transaction.
 
 ---
 
-# 27. Background Job Workflow
+# 32. Background Job Workflow
 
-Long-running or asynchronous operations should be processed outside the main request.
+Long-running or non-critical operations should be processed asynchronously.
 
 ```text
 Application
@@ -899,46 +1235,89 @@ Success / Failure
 Update Job Status
 ```
 
-Potential background jobs:
+Potential jobs:
 
 ```text
-AI processing
-Report generation
-Analytics processing
+AI Processing
+Report Generation
+Analytics Processing
 Notifications
-Emails
-Scheduled tasks
+Email
+Scheduled Tasks
+Cache Maintenance
 ```
+
+Jobs should be:
+
+* Tenant-aware
+* Authorized
+* Idempotent where required
+* Retryable where appropriate
+* Observable
 
 ---
 
-# 28. Industry Capability Workflow
+# 33. Business Event Workflow
 
-The system determines which industry capabilities are available for the tenant.
-
-```text
-User Request
- ↓
-Resolve Tenant
- ↓
-Identify Industry
- ↓
-Load Enabled Capabilities
- ↓
-Validate Capability
- ↓
-Execute Common Workflow
- ↓
-Apply Industry Extension
-```
+A successful business transaction may generate downstream events.
 
 Example:
 
 ```text
-Clothing Sale
+SALE_CREATED
+      |
+      +──> Analytics
+      |
+      +──> AI Processing
+      |
+      +──> Notification
+      |
+      +──> Cache Invalidation
+```
 
-POS
+The critical sale transaction must not depend on successful completion of these downstream processes.
+
+The database transaction completes first.
+
+---
+
+# 34. Industry Capability Workflow
+
+Industry capabilities are resolved based on:
+
+```text
+User
  ↓
+Tenant
+ ↓
+Industry
+ ↓
+Enabled Capabilities
+ ↓
+Permission
+ ↓
+Workflow
+```
+
+A capability may modify or extend a common workflow.
+
+Example:
+
+```text
+Common Retail Sale
+        ↓
+Product
+        ↓
+Inventory
+        ↓
+Payment
+        ↓
+Invoice
+```
+
+Clothing:
+
+```text
 Product
  ↓
 Variant
@@ -955,24 +1334,66 @@ Invoice
 Restaurant:
 
 ```text
-Restaurant Sale
-
-POS
- ↓
 Menu Item
  ↓
 Recipe
  ↓
 Ingredient Consumption
  ↓
+Inventory
+ ↓
 Payment
  ↓
 Invoice
 ```
 
+The common transaction principles remain unchanged.
+
 ---
 
-# 29. Pharmacy Workflow
+# 35. Supermarket / Grocery Workflow
+
+The first complete industry workflow is:
+
+```text
+Supplier
+ ↓
+Purchase
+ ↓
+Receive Stock
+ ↓
+Inventory
+ ↓
+Barcode / Product Search
+ ↓
+Customer
+ ↓
+POS
+ ↓
+Cart
+ ↓
+Stock Validation
+ ↓
+Payment
+ ↓
+Sale
+ ↓
+Invoice
+ ↓
+Stock Movement
+ ↓
+Analytics
+ ↓
+AI Insights
+```
+
+This workflow represents the primary MVP business journey.
+
+---
+
+# 36. Future Pharmacy Workflow
+
+Pharmacy-specific capabilities may eventually support:
 
 ```text
 Supplier
@@ -989,9 +1410,7 @@ Customer
  ↓
 POS
  ↓
-Medicine Selection
- ↓
-Batch Selection
+Medicine / Batch Selection
  ↓
 Payment
  ↓
@@ -999,42 +1418,14 @@ Invoice
  ↓
 Stock Deduction
  ↓
-Expiry / Stock Monitoring
+Expiry Monitoring
 ```
+
+This is a future capability workflow and is not part of the initial supermarket MVP completion requirement.
 
 ---
 
-# 30. Supermarket Workflow
-
-```text
-Supplier
- ↓
-Purchase Products
- ↓
-Receive Stock
- ↓
-Barcode / SKU
- ↓
-Inventory
- ↓
-Customer
- ↓
-Scan Products
- ↓
-POS
- ↓
-Payment
- ↓
-Invoice
- ↓
-Stock Deduction
- ↓
-Sales Analytics
-```
-
----
-
-# 31. Clothing Workflow
+# 37. Future Clothing Workflow
 
 ```text
 Supplier
@@ -1045,7 +1436,7 @@ Receive Variants
  ↓
 Size / Color
  ↓
-Inventory
+Variant Inventory
  ↓
 Customer
  ↓
@@ -1059,12 +1450,12 @@ Invoice
  ↓
 Variant Stock Deduction
  ↓
-Sales Analytics
+Analytics
 ```
 
 ---
 
-# 32. Restaurant Workflow
+# 38. Future Restaurant Workflow
 
 ```text
 Supplier
@@ -1077,7 +1468,7 @@ Ingredient Inventory
  ↓
 Customer
  ↓
-Table / Order
+Order / Table
  ↓
 Menu Item
  ↓
@@ -1092,57 +1483,70 @@ Invoice
 Analytics
 ```
 
+These workflows demonstrate how future capabilities can extend the shared business engine.
+
 ---
 
-# 33. Complete Business Event Flow
+# 39. Complete Transaction Event Flow
 
-A successful transaction can trigger multiple downstream operations.
+A successful POS transaction can produce multiple downstream effects.
 
 ```text
-                         SALE
-                          |
-          +---------------+---------------+
-          |               |               |
-          v               v               v
-      Inventory        Payment         Invoice
-          |
-          v
-    Stock Movement
-          |
-          v
-      Analytics
-          |
-          v
-    Background Jobs
-          |
-     +----+----+
-     |         |
-     v         v
-    AI     Notification
+                     SALE
+                      |
+        +-------------+-------------+
+        |             |             |
+        v             v             v
+      Sale          Payment       Invoice
+        |
+        v
+ Stock Movement
+        |
+        v
+ Inventory State
+        |
+        v
+    COMMIT
+        |
+        +-------------------+
+        |                   |
+        v                   v
+    Analytics              Async Jobs
+                            |
+                       +----+----+
+                       |         |
+                       v         v
+                      AI    Notifications
 ```
 
-The transactional operation should complete reliably before non-critical asynchronous processing begins.
+The critical transaction must complete before optional asynchronous processing is relied upon.
 
 ---
 
-# 34. Error Handling Workflow
+# 40. Error Handling Workflow
 
-When an operation fails:
+For synchronous operations:
 
 ```text
 Request
+ ↓
+Authentication
+ ↓
+Authorization
  ↓
 Validation
  ↓
 Business Logic
  ↓
+Transaction
+ ↓
 Error
  ↓
-Transaction Rollback (if applicable)
+Rollback if applicable
  ↓
 Log Error
  ↓
-Return Safe API Response
+Safe API Response
 ```
 
 For asynchronous jobs:
@@ -1158,82 +1562,104 @@ Retry
  ↓
 Failure Again
  ↓
-Dead Letter / Failed Queue
+Failed / Dead-Letter Handling
  ↓
 Alert / Investigation
 ```
 
-Errors must not expose sensitive system information to end users.
+Errors must not expose sensitive system information to users.
 
 ---
 
-# 35. Audit Workflow
+# 41. Failure Isolation
 
-Important business actions should be traceable.
+Optional systems must not unnecessarily interrupt core business operations.
+
+Example:
+
+```text
+AI Provider Down
+ ↓
+AI unavailable
+ ↓
+POS continues
+```
+
+```text
+Email Provider Down
+ ↓
+Email delayed
+ ↓
+Sale remains completed
+```
+
+```text
+Analytics Worker Down
+ ↓
+Analytics delayed
+ ↓
+Transactional operations continue
+```
+
+This principle is critical for retail operations.
+
+---
+
+# 42. Audit Workflow
+
+Important business actions should produce auditable records.
 
 ```text
 User Action
  ↓
+Authorization
+ ↓
 Business Operation
  ↓
-Audit Event
+Database Change
  ↓
-Audit Log
+Audit Record
 ```
 
 Example:
 
 ```text
-User:
-Admin
-
-Action:
-Inventory Adjustment
-
-Product:
-ABC
-
-Previous:
-50
-
-New:
-45
-
-Reason:
-Damage
-
-Timestamp:
-Recorded
-
-Tenant:
-Tenant ID
+User: Manager
+Action: Inventory Adjustment
+Store: Main Branch
+Product: ABC
+Previous Quantity: 50
+New Quantity: 45
+Reason: DAMAGE
+Timestamp: Recorded
+Tenant: Tenant ID
 ```
 
-Audit requirements will be defined in the security documentation.
+Audit records must be tenant-aware and protected from unauthorized modification.
 
 ---
 
-# 36. Data Consistency Principles
+# 43. Data Consistency Principles
 
-Critical business operations must preserve consistency.
+Critical operations must preserve business consistency.
 
-Examples:
-
-### Sale
+A successful sale should result in a coherent state:
 
 ```text
 Sale
++
+Sale Items
 +
 Payment
 +
 Stock Movement
 +
-Inventory Update
+Inventory State
 +
 Invoice
 ```
 
-These operations should be coordinated so that the system does not create impossible states such as:
+The system must prevent impossible states such as:
 
 ```text
 Payment successful
@@ -1249,46 +1675,88 @@ BUT
 Inventory not updated
 ```
 
+or:
+
+```text
+Return processed
+BUT
+Refund recorded twice
+```
+
+Critical consistency should be enforced through database transactions, constraints, idempotency and appropriate concurrency controls.
+
 ---
 
-# 37. Core Workflow Principle
+# 44. Source of Truth Flow
+
+Buzzsynx follows this hierarchy:
+
+```text
+PostgreSQL
+    ↓
+Authoritative Transactional State
+
+Redis
+    ↓
+Cache / Temporary State
+
+BullMQ
+    ↓
+Asynchronous Execution
+
+Analytics
+    ↓
+Derived Information
+
+AI
+    ↓
+Insights / Recommendations
+```
+
+Derived systems must not silently become authoritative sources for transactional data.
+
+---
+
+# 45. Core Workflow Model
 
 Buzzsynx follows:
 
 ```text
 COMMON BUSINESS ENGINE
           +
-INDUSTRY-SPECIFIC CAPABILITIES
+INDUSTRY CAPABILITIES
           +
 TENANT CONFIGURATION
+          +
+STORE CONFIGURATION
 ```
 
-The goal is:
+Result:
 
 ```text
 One Platform
      ↓
 Many Tenants
      ↓
+One or More Stores
+     ↓
 Different Industries
      ↓
 Different Capabilities
      ↓
-Shared Core Workflows
+Shared Business Workflows
 ```
 
 ---
 
-# 38. Workflow Evolution
+# 46. Future Workflow Evolution
 
-The initial workflows are designed to support future capabilities.
-
-Potential future workflows include:
+Future workflows may include:
 
 ```text
 Multi-location
-Warehouses
 Stock Transfers
+Warehouses
 Purchase Orders
 Supplier Payments
 Customer Loyalty
@@ -1302,35 +1770,98 @@ Mobile Applications
 Third-party Integrations
 ```
 
-New workflows should extend the existing architecture instead of bypassing established business rules.
+These should extend existing business rules rather than bypassing the established transaction, authorization and tenant-isolation model.
 
 ---
 
-# 39. Workflow Completion Criteria
+# 47. Workflow Completion Criteria
 
 A workflow is considered complete only when:
 
 ```text
 [ ] Business requirement defined
+[ ] Workflow documented
 [ ] Database model implemented
 [ ] API implemented
 [ ] Validation implemented
+[ ] Authentication implemented
 [ ] Authorization implemented
 [ ] Tenant isolation verified
+[ ] Store scope verified where applicable
+[ ] Business transaction consistency verified
 [ ] Frontend implemented
 [ ] Error handling implemented
 [ ] Audit requirements handled
+[ ] Background processing handled where required
 [ ] Tests implemented
+[ ] Critical end-to-end workflow tested
 [ ] Documentation updated
 ```
 
-Critical workflows must also have end-to-end test coverage.
+A feature being visible in the UI does not mean the workflow is complete.
 
 ---
 
-# 40. Related Documentation
+# 48. Critical Workflow Definition
+
+The following workflows are considered critical business workflows:
 
 ```text
+Tenant Onboarding
+Authentication
+Product Creation
+Purchase
+Stock Receiving
+Inventory Adjustment
+POS Sale
+Payment
+Invoice
+Return / Refund
+Customer Purchase
+```
+
+Critical workflows must receive stronger validation, transaction handling, authorization and testing.
+
+---
+
+# 49. Workflow Development Principle
+
+Every major feature should be implemented through the following sequence:
+
+```text
+Understand
+   ↓
+Design
+   ↓
+Document
+   ↓
+Implement
+   ↓
+Validate
+   ↓
+Test
+   ↓
+Debug
+   ↓
+Review
+   ↓
+Harden
+   ↓
+Deploy
+   ↓
+Observe
+   ↓
+Improve
+```
+
+This workflow applies to both core business modules and future industry capabilities.
+
+---
+
+# 50. Related Documentation
+
+```text
+00-project-overview.md
 01-architecture.md
 02-system-workflow.md
 03-database-design.md
@@ -1353,9 +1884,18 @@ Critical workflows must also have end-to-end test coverage.
 
 ---
 
-## Document Status
+# 51. Document Status
 
-**Version:** `v0.1`
-**Status:** `Draft — Workflow Baseline`
+**Version:** `v1.0`
 
-This document should evolve as business workflows are implemented and validated.
+**Status:** `Architecture-Aligned Workflow Baseline`
+
+**Initial Complete Workflow:** `Supermarket / Grocery Retail`
+
+**Architecture:** `Multi-Tenant Modular Monolith`
+
+**Primary Principle:**
+
+> **Complete the authoritative business transaction first. Process intelligence, analytics and notifications around it.**
+
+The workflow documentation should evolve alongside implementation, but changes must preserve the architectural principles defined in `01-architecture.md`.
