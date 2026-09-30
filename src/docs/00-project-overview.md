@@ -2,19 +2,19 @@
 
 **Document:** Project Overview
 **Project:** Buzzsynx
-**Version:** 1.0
-**Status:** Architecture & Development
+**Version:** 2.0
+**Status:** Architecture Baseline
 **Architecture:** Multi-Tenant Modular Monolith
 **Product Type:** AI-Powered Business Operations SaaS
 **Primary Stack:** Next.js, React, Node.js, Express, PostgreSQL, Prisma, Redis, BullMQ
 **Infrastructure:** Docker, Nginx, GitHub Actions, AWS
-**Development Philosophy:** Build simple, modular, secure, scalable, and production-oriented software.
+**Repository:** GitHub
 
 ---
 
 # 1. Project Introduction
 
-**Buzzsynx** is an AI-powered, multi-tenant business operations platform designed to help businesses manage their day-to-day operations from a single system.
+**Buzzsynx** is a multi-tenant business operations SaaS platform designed to help businesses manage their operational workflows through a unified system.
 
 The platform combines:
 
@@ -22,95 +22,27 @@ The platform combines:
 * Inventory management
 * Purchasing
 * Suppliers
-* Point of Sale (POS)
+* POS
 * Sales
 * Customers
 * Payments
 * Invoices
 * Analytics
 * Reports
-* Automation
-* AI-powered business intelligence
+* Notifications and automation
+* AI-powered operational intelligence
 
-Buzzsynx is designed as a **general-purpose business platform**, rather than a product limited to one industry.
+Buzzsynx is designed as a **shared business platform** rather than a collection of separate applications.
 
-The system provides a shared business engine while allowing individual tenants to enable industry-specific capabilities according to their business model.
+The core business engine remains common across tenants, while industry-specific requirements are introduced through configurable capabilities.
 
----
-
-# 2. The Core Idea
-
-The fundamental idea behind Buzzsynx is:
-
-> **One platform, multiple businesses, configurable business capabilities, and AI-powered operational intelligence.**
-
-Instead of building a separate application for every industry, Buzzsynx uses a common business foundation.
-
-For example:
-
-```text
-                         BUZZSYNX
-                            │
-              ┌─────────────┴─────────────┐
-              │                           │
-       Shared Business Engine       Industry Capabilities
-              │                           │
-     ┌────────┼────────┐          ┌───────┼────────┐
-     │        │        │          │       │        │
-   Product  Inventory  POS     Pharmacy  Retail  Restaurant
-     │        │        │          │       │        │
-     └────────┴────────┘          └───────┴────────┘
-```
-
-The shared engine handles common business operations.
-
-Industry capabilities provide specialized functionality where required.
+The initial implementation will focus on **supermarket/grocery retail**, while the architecture is designed to support additional industries later.
 
 ---
 
-# 3. Problem Statement
+# 2. Product Vision
 
-Many small and medium-sized businesses depend on multiple disconnected tools for daily operations.
-
-A typical business may use:
-
-```text
-Billing Software
-      +
-Inventory Software
-      +
-Excel
-      +
-WhatsApp
-      +
-Payment Applications
-      +
-Manual Reports
-      +
-Separate Analytics
-```
-
-This creates problems such as:
-
-* Duplicate data entry
-* Poor visibility into inventory
-* Manual reporting
-* Difficult business analysis
-* Operational mistakes
-* Disconnected customer information
-* Slow decision-making
-* Lack of automation
-* Limited business intelligence
-
-Buzzsynx aims to bring these operational functions together into one unified platform.
-
----
-
-# 4. Product Vision
-
-The long-term vision of Buzzsynx is to become a configurable business operating platform where a business can manage its core operations from one place.
-
-The platform should evolve from:
+The long-term vision of Buzzsynx is to evolve from a modern:
 
 ```text
 POS + Inventory
@@ -122,104 +54,172 @@ into:
 Business Operations Platform
 ```
 
-and eventually:
+and eventually into:
 
 ```text
-Business Intelligence
+Business Operations
+        +
+Analytics
         +
 Automation
         +
-AI
-        +
-Cloud Platform
+AI Intelligence
 ```
 
-The objective is not simply to create another billing application.
+The objective is not simply to create another billing or inventory application.
 
-The objective is to build a technically strong SaaS platform capable of supporting real-world business workflows.
+Buzzsynx is intended to become a practical business operating platform that records operational activity, analyzes business data, identifies useful signals, and helps business owners make informed operational decisions.
 
 ---
 
-# 5. Target Businesses
+# 3. Core Product Principle
 
-Buzzsynx is intentionally designed for multiple business categories.
+The fundamental model is:
 
-Initial industry capabilities include:
+```text
+Business
+   ↓
+Runs Operations
+   ↓
+Buzzsynx Records What Happened
+   ↓
+Analyzes What Happened
+   ↓
+Identifies Important Signals
+   ↓
+AI Explains / Recommends
+   ↓
+Business Takes Action
+```
 
-### Pharmacy
+The guiding technical principle is:
 
-Examples:
+> **The database knows what happened.
+> The application enforces what is allowed.
+> AI helps understand what happened and what might happen next.**
 
-* Medicine inventory
-* Batch tracking
-* Expiry tracking
-* Manufacturer information
-* MRP
-* Prescription-related workflows
+AI is therefore an intelligence layer, not the authority for critical business operations.
 
-### Supermarket / Retail
+---
 
-Examples:
+# 4. Problem Being Addressed
 
-* Barcode-based product lookup
-* Fast POS
-* Bulk products
-* Units
-* Offers
-* Retail inventory
+Many small and medium-sized businesses operate using a combination of disconnected systems such as:
 
-### Clothing
+```text
+Billing Software
+       +
+Inventory Software
+       +
+Excel
+       +
+WhatsApp
+       +
+Payment Applications
+       +
+Manual Reports
+       +
+Separate Analytics
+```
 
-Examples:
+This can create operational problems such as:
 
-* Size variants
-* Color variants
-* Variant SKUs
-* Variant-level inventory
+* Duplicate data entry
+* Poor inventory visibility
+* Manual reporting
+* Disconnected customer information
+* Difficulty understanding sales trends
+* Operational mistakes
+* Slow decision-making
+* Limited automation
+* Limited business intelligence
 
-### Restaurant
+Buzzsynx aims to provide a unified operational system where business transactions, inventory, customers, payments, analytics, and intelligent insights are connected through one platform.
 
-Examples:
+---
 
-* Menu management
-* Ingredients
-* Recipes
-* Tables
-* Orders
-* Kitchen workflows
+# 5. Initial Product Focus
 
-The architecture should allow additional industries to be introduced without rewriting the core system.
+Buzzsynx is architecturally designed for multiple business categories, but development will be **progressive rather than simultaneous**.
+
+## Initial Implementation
+
+The first complete industry workflow will be:
+
+> **Supermarket / Grocery Retail**
+
+The first implementation will focus on making the following workflow reliable:
+
+```text
+Tenant
+  ↓
+Products
+  ↓
+Purchasing
+  ↓
+Inventory
+  ↓
+POS
+  ↓
+Sales
+  ↓
+Payments
+  ↓
+Invoices
+  ↓
+Customers
+  ↓
+Analytics
+  ↓
+AI Insights
+```
+
+Once the shared business engine and supermarket workflow are stable, additional industry capabilities can be introduced.
+
+Potential future industries include:
+
+* Pharmacy
+* Clothing
+* Restaurant
+* Other retail businesses
+
+The architecture must support these industries without requiring separate applications or duplicated core business logic.
 
 ---
 
 # 6. Multi-Tenant SaaS Model
 
-Buzzsynx is designed as a **multi-tenant SaaS application**.
+Buzzsynx is a **multi-tenant SaaS platform**.
 
-Each business is represented as a tenant.
-
-Example:
+The basic hierarchy is:
 
 ```text
-Buzzsynx
-│
-├── Tenant A
-│   └── Pharmacy
-│
-├── Tenant B
-│   └── Supermarket
-│
-├── Tenant C
-│   └── Clothing Store
-│
-└── Tenant D
-    └── Restaurant
+Super Admin
+    ↓
+Tenant / Business
+    ↓
+Store / Branch
+    ↓
+Users / Memberships
 ```
+
+A tenant represents an independent business using Buzzsynx.
+
+A tenant may operate:
+
+* One store
+* Multiple stores
+* Multiple branches
+* Future warehouses or locations
+
+The architecture should therefore support multiple locations even if the first implementation starts with a single store.
 
 Each tenant has independent:
 
 * Users
+* Memberships
 * Roles
+* Permissions
 * Products
 * Inventory
 * Suppliers
@@ -228,19 +228,47 @@ Each tenant has independent:
 * Customers
 * Payments
 * Invoices
+* Reports
 * Analytics
 * AI context
 * Configuration
 
 Tenant isolation is a fundamental security requirement.
 
-A user belonging to one tenant must never be able to access another tenant's business data unless an explicitly authorized platform-level operation exists.
+A user belonging to one tenant must never be able to access another tenant's business data unless the operation is explicitly authorized as a platform-level operation.
 
 ---
 
-# 7. Shared Business Engine
+# 7. Tenant Lifecycle
 
-Buzzsynx uses a shared business engine for common operations.
+The platform-level tenant lifecycle is:
+
+```text
+PENDING
+   ↓
+ACTIVE
+   ↓
+SUSPENDED
+   ↓
+ARCHIVED
+```
+
+The initial onboarding model allows a business owner to begin the onboarding process without making normal business usage dependent on manual platform approval.
+
+Platform administration remains available for:
+
+* Tenant activation/suspension
+* Platform-level configuration
+* Capability management
+* Operational monitoring
+* Administrative controls
+* Future subscription management
+
+---
+
+# 8. Shared Business Engine
+
+Buzzsynx uses a shared business engine containing common business domains.
 
 Core domains include:
 
@@ -248,6 +276,7 @@ Core domains include:
 Authentication
 Tenants
 Users
+Memberships
 Roles & Permissions
 Products
 Inventory
@@ -264,116 +293,283 @@ AI
 Notifications
 ```
 
-These modules provide the common foundation required by different industries.
+These domains form the foundation used by different business types.
+
+Industry-specific behavior should extend the shared engine rather than duplicate it.
 
 ---
 
-# 8. Industry Capability Model
+# 9. Store and Location Model
 
-Industry-specific requirements should not create completely separate applications.
+Buzzsynx is designed to support businesses with one or multiple locations.
 
-Instead, Buzzsynx uses an industry capability model.
+The conceptual model is:
 
-Example:
+```text
+Tenant
+  │
+  ├── Store A
+  │     ├── Users
+  │     ├── Inventory
+  │     └── Operations
+  │
+  ├── Store B
+  │     ├── Users
+  │     ├── Inventory
+  │     └── Operations
+  │
+  └── Store C
+        ├── Users
+        ├── Inventory
+        └── Operations
+```
+
+Tenant scope provides business-level isolation.
+
+Store scope provides location-level access control where required.
+
+A user assigned to one store should not automatically gain access to another store's operational data.
+
+---
+
+# 10. Roles & Permissions
+
+Buzzsynx uses permission-based authorization rather than relying exclusively on role names.
+
+The initial supermarket implementation uses:
+
+```text
+SUPER_ADMIN
+OWNER
+ADMIN / MANAGER
+CASHIER
+ACCOUNTANT
+STORE_STAFF
+```
+
+## Super Admin
+
+Platform-level role responsible for platform administration.
+
+Typical responsibilities include:
+
+* Tenant administration
+* Tenant activation/suspension
+* Platform configuration
+* Capability management
+* System monitoring
+* Platform audit operations
+
+Super Admin is not the owner of a tenant business.
+
+## Owner
+
+Business owner with full tenant-level control.
+
+## Admin / Manager
+
+Operational management role with broad business permissions.
+
+## Cashier
+
+Focused primarily on POS and payment-related operations according to assigned permissions.
+
+## Accountant
+
+Focused primarily on financial, payment, invoice, and reporting operations according to assigned permissions.
+
+## Store Staff
+
+Operational store-level access according to assigned permissions.
+
+The authorization model is:
+
+```text
+Authentication
+      ↓
+Tenant Resolution
+      ↓
+Membership Verification
+      ↓
+Permission Check
+      ↓
+Store Scope
+      ↓
+Capability Check
+      ↓
+Input Validation
+      ↓
+Business Rules
+      ↓
+Tenant / Store Scoped Data Access
+      ↓
+Audit
+```
+
+The frontend may control visibility and user experience, but it is never the security boundary.
+
+---
+
+# 11. Industry Capability Model
+
+Buzzsynx separates the concept of an **industry** from the actual capabilities enabled for a tenant.
+
+The model is:
+
+```text
+Shared Business Core
+        ↓
+Industry
+        ↓
+Available Capabilities
+        ↓
+Tenant Configuration
+        ↓
+Enabled Capabilities
+```
+
+For example:
 
 ```text
 Tenant
 │
 ├── Industry
-│     └── PHARMACY
+│      └── PHARMACY
 │
-├── Enabled Capabilities
-│     ├── BATCH_TRACKING
-│     ├── EXPIRY_TRACKING
-│     └── PRESCRIPTION_WORKFLOW
-│
-└── Shared Modules
-      ├── Products
-      ├── Inventory
-      ├── Purchasing
-      ├── POS
-      └── Sales
+└── Capabilities
+       ├── BATCH_TRACKING
+       ├── EXPIRY_TRACKING
+       └── PRESCRIPTION_WORKFLOW
 ```
 
-Another tenant may use:
+Another tenant could use:
 
 ```text
 Tenant
 │
 ├── Industry
-│     └── CLOTHING
+│      └── SUPERMARKET
 │
-├── Enabled Capabilities
-│     ├── SIZE_VARIANTS
-│     ├── COLOR_VARIANTS
-│     └── VARIANT_SKU
-│
-└── Shared Modules
-      ├── Products
-      ├── Inventory
-      ├── POS
-      └── Sales
+└── Capabilities
+       ├── BARCODE
+       ├── BULK_PRODUCTS
+       ├── UNIT_HANDLING
+       └── OFFERS
 ```
 
-This allows Buzzsynx to remain flexible without creating duplicated business logic.
+Capabilities control specialized behavior without creating separate applications.
 
 ---
 
-# 9. Core Product Modules
+# 12. Initial Industry Capability Direction
 
-## 9.1 Authentication
+## Supermarket / Grocery
+
+Initial priority capabilities include:
+
+* Barcode-based product lookup
+* Fast POS
+* Bulk products
+* Units of measurement
+* Pricing
+* Offers and discounts
+* High-volume product lookup
+* Retail inventory
+
+## Pharmacy — Future
+
+Potential capabilities:
+
+* Batch tracking
+* Expiry tracking
+* Manufacturer
+* MRP
+* Prescription workflows
+* Pharmacy-specific inventory rules
+
+## Clothing — Future
+
+Potential capabilities:
+
+* Size variants
+* Color variants
+* Variant SKUs
+* Variant-level inventory
+* Variant pricing
+
+## Restaurant — Future
+
+Potential capabilities:
+
+* Menu management
+* Ingredients
+* Recipes
+* Tables
+* Orders
+* Kitchen workflows
+* Ingredient inventory
+
+Future industries should be added only after the shared core and initial retail workflow are stable.
+
+---
+
+# 13. Core Product Modules
+
+## 13.1 Authentication
 
 Responsible for:
 
 * Registration
 * Login
 * Logout
-* Sessions
+* Session management
 * Password management
 * OAuth where enabled
 * Identity management
 
 ---
 
-## 9.2 Tenant Management
+## 13.2 Tenant Management
 
 Responsible for:
 
 * Tenant creation
-* Tenant configuration
 * Tenant onboarding
-* Tenant status
+* Tenant configuration
+* Tenant lifecycle
 * Tenant membership
 * Industry configuration
+* Store/branch configuration
 
 ---
 
-## 9.3 User & RBAC
+## 13.3 Users & Memberships
 
 Responsible for:
 
-* User management
-* Roles
-* Permissions
-* Memberships
-* Access control
-
-Initial role model may include:
-
-```text
-OWNER
-ADMIN
-EDITOR
-AUTHOR
-MODERATOR
-MEMBER
-```
-
-Only applicable roles should be enabled for a particular business workflow.
+* User accounts
+* Tenant memberships
+* Store assignments
+* Role assignments
+* Account status
+* User administration
 
 ---
 
-## 9.4 Product Management
+## 13.4 Roles & Permissions
+
+Responsible for:
+
+* Role definitions
+* Permission definitions
+* Role-permission mappings
+* Tenant authorization
+* Store-level authorization
+* Capability authorization
+
+---
+
+## 13.5 Product Management
 
 Responsible for:
 
@@ -385,25 +581,27 @@ Responsible for:
 * Pricing
 * Tax
 * Units
-* Variants
+* Product status
+* Product variants where applicable
 * Industry-specific attributes
 
 ---
 
-## 9.5 Inventory
+## 13.6 Inventory
 
 Responsible for:
 
 * Stock
-* Warehouses/locations
+* Locations
 * Stock movements
-* Adjustments
+* Stock adjustments
 * Transfers
 * Low-stock detection
-* Expiry
+* Expiry where applicable
 * Inventory history
+* Stock validation
 
-Inventory should use a movement-ledger approach rather than relying only on a mutable quantity field.
+Inventory uses a movement-ledger model.
 
 Core movement types include:
 
@@ -417,11 +615,11 @@ EXPIRY
 ADJUSTMENT
 ```
 
-PostgreSQL remains the source of truth.
+PostgreSQL remains the authoritative source of inventory data.
 
 ---
 
-## 9.6 Purchasing
+## 13.7 Purchasing
 
 Responsible for:
 
@@ -429,42 +627,51 @@ Responsible for:
 * Purchase orders
 * Purchase items
 * Receiving
+* Purchase status
 * Purchase history
 * Supplier-related transactions
 
-Purchasing integrates directly with inventory.
+Purchasing integrates with the inventory engine.
 
 ---
 
-## 9.7 POS
+## 13.8 POS
 
-The POS system provides the transactional interface for business sales.
+POS provides the primary transactional interface for sales.
 
-Typical workflow:
+The core workflow is:
 
 ```text
-Product Search
-      ↓
+Product Search / Scan
+        ↓
 Cart
-      ↓
+        ↓
 Stock Validation
-      ↓
+        ↓
 Price / Discount / Tax
-      ↓
+        ↓
 Payment
-      ↓
+        ↓
 Sale
-      ↓
-Inventory Movement
-      ↓
+        ↓
+Stock Movement
+        ↓
 Invoice
 ```
 
-POS performance and transaction consistency are critical.
+POS must prioritize:
+
+* Speed
+* Simplicity
+* Transaction consistency
+* Reliable stock validation
+* Reliable payment handling
+
+AI, reports, notifications, and other non-critical background operations must not block checkout.
 
 ---
 
-## 9.8 Sales
+## 13.9 Sales
 
 Responsible for:
 
@@ -478,34 +685,35 @@ Responsible for:
 
 ---
 
-## 9.9 Customers
+## 13.10 Customers
 
 Responsible for:
 
 * Customer profiles
-* Customer history
+* Customer search
 * Purchase history
+* Customer activity
 * Customer analytics
-* Segmentation where required
+* Segmentation where applicable
 
 ---
 
-## 9.10 Payments
+## 13.11 Payments
 
 Responsible for:
 
 * Payment methods
 * Payment status
 * Payment verification
-* Refunds
 * Payment records
+* Refunds
 * Payment webhooks where applicable
 
-Financial operations must remain deterministic.
+Payment amounts and financial calculations must remain deterministic and server-controlled.
 
 ---
 
-## 9.11 Invoices
+## 13.12 Invoices
 
 Responsible for:
 
@@ -514,13 +722,14 @@ Responsible for:
 * Tax information
 * Invoice history
 * Invoice documents
-* Printing/download
+* Printing
+* Downloading
 
 ---
 
-## 9.12 Analytics & Reports
+## 13.13 Analytics & Reports
 
-Buzzsynx should provide operational visibility into:
+Analytics provides operational visibility into:
 
 * Sales
 * Revenue
@@ -531,35 +740,49 @@ Buzzsynx should provide operational visibility into:
 * Business trends
 * Industry-specific metrics
 
-Analytics may use cached or precomputed data where appropriate, but business source data remains authoritative in PostgreSQL.
+Analytics may use cached or precomputed data, but PostgreSQL remains the authoritative source for business transactions.
 
 ---
 
-# 10. AI Intelligence Layer
+# 14. AI Intelligence Layer
 
-AI is a major component of Buzzsynx, but it is not intended to replace the core business engine.
+AI is a major component of Buzzsynx, but it is not the authority for business transactions.
 
-The architecture follows this principle:
+The AI architecture follows:
 
-> **The database knows what happened. The application enforces what is allowed. AI helps understand what happened and what might happen next.**
+```text
+Business Transactions
+        ↓
+PostgreSQL
+        ↓
+Business Metrics / Signals
+        ↓
+AI Intelligence
+        ↓
+Insights / Recommendations
+        ↓
+User / Application
+        ↓
+Business Action
+```
 
-Potential AI capabilities include:
+Potential capabilities include:
 
-### Demand Forecasting
+### Demand Intelligence
 
-Predict potential future product demand using historical business data.
+Identify potential future demand based on historical business data.
 
 ### Reorder Recommendations
 
 Identify products that may require replenishment.
 
-### Dead Stock Detection
+### Dead-Stock Detection
 
 Identify products with low or no movement.
 
 ### Expiry Intelligence
 
-Identify products approaching expiry and generate useful operational insights.
+Identify products approaching expiry and generate operational insights.
 
 ### Sales Intelligence
 
@@ -573,29 +796,36 @@ Identify useful customer purchasing patterns.
 
 Identify unusual operational or sales behavior.
 
-### Business Summary
+### Business Summaries
 
 Generate natural-language summaries of business activity.
 
-### AI Assistant
+### Controlled AI Assistant
 
-Provide a controlled conversational interface for business insights and approved operational queries.
+Provide conversational access to approved business insights and operational queries.
 
-AI must not have unrestricted access to the database or authorization to directly modify critical financial/inventory records.
+AI must not:
+
+* Own transactional truth
+* Calculate final financial totals
+* Bypass authorization
+* Access arbitrary tenant data
+* Execute unrestricted database operations
+* Directly modify critical inventory or financial records without deterministic application controls
 
 ---
 
-# 11. Automation
+# 15. Automation & Background Processing
 
-Buzzsynx will use background processing for operations that should not block the main user request.
+Buzzsynx uses asynchronous processing for work that should not block critical user operations.
 
-Examples:
+For example:
 
 ```text
 Sale Created
      │
-     ├── Analytics Update
-     ├── Notification
+     ├── Analytics
+     ├── Notifications
      ├── AI Processing
      └── Reporting
 ```
@@ -610,11 +840,175 @@ Potential background jobs include:
 * Scheduled tasks
 * Maintenance
 
-BullMQ and Redis provide the initial queue infrastructure.
+Redis and BullMQ provide the initial queue infrastructure.
+
+Critical transactional operations remain inside the application/database transaction and must not depend on background jobs completing successfully.
 
 ---
 
-# 12. Technology Stack
+# 16. Source-of-Truth Architecture
+
+Buzzsynx follows a strict responsibility model:
+
+```text
+PostgreSQL
+    ↓
+Authoritative Business Data
+
+Redis
+    ↓
+Cache / Temporary Data
+
+BullMQ
+    ↓
+Asynchronous Processing
+
+AI
+    ↓
+Intelligence / Recommendations
+```
+
+Responsibilities must not be confused.
+
+Therefore:
+
+* Redis does not own inventory.
+* Redis does not become the financial source of truth.
+* BullMQ does not replace transactions.
+* AI does not determine authoritative business data.
+* Frontend state does not determine authorization.
+* Client input does not determine tenant ownership.
+
+---
+
+# 17. Transaction Integrity
+
+Critical business workflows must remain deterministic and transactional.
+
+For example, POS checkout should conceptually execute:
+
+```text
+BEGIN TRANSACTION
+        ↓
+Validate Request
+        ↓
+Validate Stock
+        ↓
+Create Sale
+        ↓
+Create Sale Items
+        ↓
+Create Payment Record
+        ↓
+Create Stock Movement
+        ↓
+Update Inventory
+        ↓
+Create Invoice
+        ↓
+Create Required Outbox Event
+        ↓
+COMMIT
+```
+
+If a critical step fails:
+
+```text
+ROLLBACK
+```
+
+The system must avoid partial business transactions.
+
+Asynchronous work such as analytics, notifications, AI processing, and reporting occurs after successful transaction completion.
+
+---
+
+# 18. Multi-Tenancy Security Model
+
+Every tenant-owned operation must be tenant-scoped.
+
+The system must never rely on a client-provided `tenantId` as the authority.
+
+The request security model is:
+
+```text
+Authentication
+      ↓
+Tenant Resolution
+      ↓
+Membership Verification
+      ↓
+Permission Check
+      ↓
+Capability Check
+      ↓
+Input Validation
+      ↓
+Business Logic
+      ↓
+Tenant / Store Scoped Data Access
+      ↓
+Audit
+```
+
+Resource access must be validated using the authenticated tenant and applicable store scope.
+
+For example:
+
+```text
+resourceId
++
+authenticated tenant scope
++
+store scope where applicable
+```
+
+rather than trusting:
+
+```text
+resourceId
+```
+
+alone.
+
+Tenant isolation must extend beyond PostgreSQL to:
+
+* Redis
+* BullMQ
+* AI processing
+* Analytics
+* Reports
+* File storage
+* Notifications
+* Logs and observability
+
+---
+
+# 19. Security Philosophy
+
+Security is part of the architecture rather than a final add-on.
+
+Critical security areas include:
+
+* Authentication
+* Authorization
+* Tenant isolation
+* Store-level access control
+* Input validation
+* API security
+* Payment security
+* File security
+* Secret management
+* Rate limiting
+* Audit logging
+* AI security
+* Dependency security
+
+The system should follow least-privilege principles and treat all client-controlled input as untrusted.
+
+---
+
+# 20. Technology Stack
 
 ## Frontend
 
@@ -624,6 +1018,7 @@ BullMQ and Redis provide the initial queue infrastructure.
 * Tailwind CSS
 * shadcn/ui
 * Zustand where required
+* TanStack Query where appropriate
 
 ## Backend
 
@@ -635,13 +1030,27 @@ BullMQ and Redis provide the initial queue infrastructure.
 * PostgreSQL
 * Prisma ORM
 
-## Caching & Temporary Data
+## Caching / Temporary Data
 
 * Redis
+* ioredis
 
 ## Background Processing
 
 * BullMQ
+
+## Validation
+
+* Zod
+
+## Authentication / Security
+
+* Authentication/session implementation
+* bcrypt where password authentication is used
+* JWT/session mechanisms according to the final authentication design
+* Helmet
+* CORS
+* Rate limiting
 
 ## Infrastructure
 
@@ -661,270 +1070,234 @@ BullMQ and Redis provide the initial queue infrastructure.
 
 Potential components include:
 
+* Pino structured logging
 * Sentry
-* CloudWatch
-* Structured application logs
+* AWS CloudWatch
 * Health checks
-* Metrics
+* Application metrics
+* OpenTelemetry when justified
+
+Additional infrastructure dependencies should be introduced only when the corresponding feature requires them.
 
 ---
 
-# 13. Architecture Direction
+# 21. Architecture Direction
 
 Buzzsynx will initially use a:
 
 > **Multi-Tenant Modular Monolith**
 
-The system is not being built as microservices from day one.
+The architecture is intentionally not microservices-first.
 
 Conceptually:
 
 ```text
                     Buzzsynx
                        │
-              ┌────────┴────────┐
-              │   Next.js App   │
-              └────────┬────────┘
-                       │
-                 Express API
-                       │
-       ┌───────────────┼────────────────┐
-       │               │                │
-    Business        Infrastructure     AI
-    Modules          Services         Module
-       │               │                │
-       └───────────────┼────────────────┘
-                       │
-          ┌────────────┴────────────┐
-          │                         │
-     PostgreSQL                   Redis
-          │                         │
-          └────────────┬────────────┘
-                       │
-                    BullMQ
-                       │
-                    Workers
+             ┌─────────┴─────────┐
+             │                   │
+        Next.js App          Express API
+                                 │
+                    ┌────────────┼────────────┐
+                    │            │            │
+                 Business   Infrastructure    AI
+                  Modules      Services       Module
+                    │            │            │
+                    └────────────┼────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+               PostgreSQL                  Redis
+                    │                         │
+                    └────────────┬────────────┘
+                                 │
+                              BullMQ
+                                 │
+                              Workers
 ```
 
-The modular architecture should keep boundaries clear enough that specific domains can be extracted into independent services in the future if scale or organizational requirements justify it.
+The modular structure should maintain clear domain boundaries so that individual components can be extracted into separate services in the future if scale, workload, or organizational requirements justify it.
+
+Microservices are not an initial requirement.
 
 ---
 
-# 14. Data Architecture Principle
+# 22. Module Design Principles
 
-Buzzsynx follows a clear source-of-truth hierarchy.
+Each major backend domain should maintain clear responsibility boundaries.
+
+Conceptually:
 
 ```text
-PostgreSQL
-    ↓
-Source of Truth
-
-Redis
-    ↓
-Cache / Temporary Data
-
-BullMQ
-    ↓
-Asynchronous Processing
-
-AI
-    ↓
-Intelligence / Recommendations
+Module
+ ├── Routes
+ ├── Controller
+ ├── Service
+ ├── Repository / Data Access
+ ├── Validation
+ └── Domain-specific logic
 ```
 
-The system must not confuse these responsibilities.
+General principles:
 
-For example:
+* Controllers remain thin.
+* Business rules belong in services/domain logic.
+* Data access remains controlled.
+* Validation occurs before business processing.
+* Infrastructure concerns remain separated.
+* Modules communicate through defined interfaces.
+* Shared utilities should remain genuinely shared.
+* Duplicate business logic should be avoided.
 
-* Redis does not own inventory.
-* AI does not calculate final payment totals.
-* Background jobs do not replace transactional operations.
-* Frontend state does not determine authorization.
-* Client input does not determine tenant ownership.
+The goal is a modular monolith, not a collection of artificially separated mini-applications.
 
 ---
 
-# 15. Security Philosophy
+# 23. Development Philosophy
 
-Security is part of the architecture, not a final add-on.
+Buzzsynx is being developed as a serious engineering project while deliberately avoiding unnecessary complexity.
 
-The primary security model is:
-
-```text
-Authentication
-      ↓
-Tenant Resolution
-      ↓
-Membership Verification
-      ↓
-RBAC
-      ↓
-Capability Check
-      ↓
-Input Validation
-      ↓
-Business Logic
-      ↓
-Tenant-Scoped Data Access
-      ↓
-Audit
-```
-
-Every tenant-owned operation must be properly scoped.
-
-Critical areas include:
-
-* Authentication
-* Authorization
-* Tenant isolation
-* Input validation
-* API security
-* Payment security
-* File security
-* Secret management
-* Audit logging
-* Rate limiting
-* AI security
-
----
-
-# 16. Project Development Philosophy
-
-Buzzsynx is being developed as a serious engineering project rather than a rapid prototype.
-
-The development approach is:
+The development loop is:
 
 ```text
 Understand
-   ↓
+    ↓
 Design
-   ↓
+    ↓
 Document
-   ↓
+    ↓
 Implement
-   ↓
-Validate
-   ↓
+    ↓
+Validate / Test
+    ↓
+Debug
+    ↓
+Review
+    ↓
 Harden
-   ↓
+    ↓
 Deploy
-   ↓
+    ↓
 Observe
-   ↓
+    ↓
 Improve
 ```
-
-The project should avoid unnecessary complexity.
 
 The guiding principle is:
 
 > **Do not add complexity until the previous layer is stable.**
 
-Therefore, the project will not prematurely introduce:
+Buzzsynx will not prematurely introduce:
 
 * Microservices
 * Kubernetes
-* Multi-region infrastructure
+* Multi-region architecture
 * Complex AI agents
-* Distributed systems complexity
+* Distributed-system complexity
+* Enterprise infrastructure
 
-unless the project requirements actually justify them.
+unless actual product, workload, scale, or organizational requirements justify them.
 
 ---
 
-# 17. Development Phases
+# 24. Development Phases
 
-Buzzsynx follows a phased implementation strategy.
+The project follows a progressive implementation model.
 
 ```text
 Phase 0  → Project Foundation
+
 Phase 1  → Application Foundation
+
 Phase 2  → Authentication & Multi-Tenancy
+
 Phase 3  → Product Management
+
 Phase 4  → Inventory Engine
+
 Phase 5  → Purchasing
+
 Phase 6  → POS & Sales
+
 Phase 7  → Customers & Payments
-Phase 8  → Industry Capabilities
+
+Phase 8  → Initial Industry Capabilities
+
 Phase 9  → Analytics & Reporting
+
 Phase 10 → AI Intelligence
+
 Phase 11 → Notifications & Automation
+
 Phase 12 → Security & Hardening
+
 Phase 13 → DevOps & Deployment
+
 Phase 14 → Observability
+
 Phase 15 → SaaS Readiness
+
 Phase 16 → Production Readiness
+
 Phase 17 → Project Release
 ```
 
-Each phase should be completed and stabilized before unnecessary complexity is introduced into the next stage.
+Phases describe the development progression, not a requirement to build every possible future feature before validating the initial product.
 
----
-
-# 18. Documentation Structure
-
-The project documentation is organized as follows:
+The first major vertical slice should prioritize:
 
 ```text
-docs/
-│
-├── 00-project-overview.md
-├── 01-architecture.md
-├── 02-system-workflow.md
-├── 03-database-design.md
-├── 04-api-design.md
-├── 05-multi-tenancy.md
-├── 06-industry-capabilities.md
-├── 07-security.md
-├── 08-ai-architecture.md
-├── 09-caching-and-queues.md
-├── 10-testing-strategy.md
-├── 11-devops.md
-├── 12-aws-infrastructure.md
-├── 13-observability.md
-├── 14-development-standards.md
-├── 15-phase-wise-execution.md
-├── 16-featurewise-checklist.md
-├── 17-production-readiness.md
-└── 18-project-completion.md
+Tenant
+ ↓
+Product
+ ↓
+Purchase
+ ↓
+Inventory
+ ↓
+POS
+ ↓
+Sale
+ ↓
+Payment
+ ↓
+Invoice
 ```
 
-The `00` document provides the overall context.
-
-The remaining documents describe individual architectural and implementation areas in greater depth.
+After the core workflow is stable, analytics and AI can be built on top of real business data.
 
 ---
 
-# 19. Current Scope
+# 25. Current Product Scope
 
-The initial Buzzsynx scope includes:
-
-### Core Platform
+## Core Platform
 
 * Authentication
 * Tenant management
-* Users
-* RBAC
+* Users and memberships
+* RBAC and permissions
+* Store/branch structure
 * Products
-* Inventory
 * Suppliers
 * Purchasing
+* Inventory
 * POS
 * Sales
 * Customers
 * Payments
 * Invoices
 
-### Intelligence
+## Intelligence
 
 * Analytics
 * Reports
-* AI insights
-* Forecasting
-* Recommendations
+* Operational insights
+* AI recommendations
+* AI-powered business summaries
 
-### Platform Infrastructure
+## Infrastructure
 
+* PostgreSQL
 * Redis
 * BullMQ
 * Docker
@@ -934,42 +1307,192 @@ The initial Buzzsynx scope includes:
 * Security
 * Production deployment
 
-### Industry Capabilities
+## Initial Industry
+
+* Supermarket / Grocery Retail
+
+## Future Industry Capabilities
 
 * Pharmacy
-* Supermarket
 * Clothing
 * Restaurant
+* Additional retail/business categories
 
 ---
 
-# 20. Out-of-Scope / Future Expansion
+# 26. Out-of-Scope / Future Expansion
 
-The architecture should allow future expansion without forcing those features into the initial build.
+The architecture should allow future expansion without forcing these capabilities into the initial implementation.
 
 Potential future capabilities include:
 
 * Advanced subscription management
 * Advanced billing plans
-* Marketplace functionality
+* Usage-based quotas
 * Mobile applications
 * Advanced CRM
-* Advanced accounting integrations
-* Third-party ERP integrations
+* Accounting integrations
+* Tally/ERP integrations
+* Third-party business integrations
+* Online ordering
+* Delivery workflows
 * Advanced AI agents
 * Microservice extraction
 * Kubernetes
 * Multi-region infrastructure
-* Enterprise dedicated databases
+* Dedicated enterprise databases
 * Advanced event-driven architecture
 
-These should only be introduced when justified by product or scale requirements.
+These should be introduced only when product or operational requirements justify them.
 
 ---
 
-# 21. Learning & Engineering Objective
+# 27. Testing & Validation Philosophy
 
-Buzzsynx also serves as a practical engineering project for developing deeper expertise in:
+Buzzsynx must validate business behavior rather than only individual functions.
+
+Important validation areas include:
+
+* Authentication
+* Authorization
+* Tenant isolation
+* Store isolation
+* Product workflows
+* Inventory transactions
+* Purchase receiving
+* POS checkout
+* Payment processing
+* Invoice generation
+* Returns/refunds
+* Background jobs
+* AI tenant isolation
+* Failure scenarios
+
+Critical workflows should eventually be validated end-to-end.
+
+Testing should increase progressively as the application moves from development to staging and production.
+
+---
+
+# 28. DevOps & Deployment Direction
+
+The initial engineering flow is:
+
+```text
+Developer
+    ↓
+Local Development
+    ↓
+Docker Compose
+    ↓
+GitHub
+    ↓
+CI
+    ↓
+Build
+    ↓
+Staging
+    ↓
+Validation
+    ↓
+Production
+```
+
+DevOps responsibilities include:
+
+* Source control
+* Reproducible builds
+* Environment configuration
+* Docker
+* Database migrations
+* CI/CD
+* Worker deployment
+* Health checks
+* Logging
+* Deployment control
+* Rollback
+* Backup and recovery
+
+AWS infrastructure is treated as a deployment concern and should evolve progressively without unnecessarily changing the application architecture.
+
+---
+
+# 29. Observability Philosophy
+
+Buzzsynx must be observable enough to understand what is happening in production.
+
+The observability model is:
+
+```text
+Logs
+  +
+Metrics
+  +
+Traces
+  +
+Health
+  +
+Audit
+```
+
+These have different responsibilities:
+
+* **Logs** — what happened
+* **Metrics** — how often/how much
+* **Traces** — where time was spent or where a request failed
+* **Health** — whether the system can operate
+* **Audit** — who performed important business actions
+
+Observability must respect tenant isolation and must never expose sensitive information unnecessarily.
+
+---
+
+# 30. Backup, Recovery & Reliability
+
+Production readiness includes the ability to recover from failures.
+
+The platform should eventually provide:
+
+* Automated database backups
+* Defined retention
+* Secure backup storage
+* Documented restoration procedures
+* Tested restoration
+* Deployment rollback
+* Database migration safety
+* Failure handling for Redis
+* Failure handling for workers
+* Failure handling for AI providers
+* Failure handling for external providers
+
+The principle is:
+
+> **A backup is not considered reliable until restoration has been demonstrated.**
+
+---
+
+# 31. SaaS Evolution
+
+Buzzsynx is initially focused on the core business engine.
+
+As the platform matures, SaaS-specific capabilities may include:
+
+* Subscription plans
+* Usage limits
+* Tenant quotas
+* Tenant administration
+* Billing
+* Feature/capability management
+* Operational monitoring
+* Customer lifecycle management
+
+These capabilities should be added after the core business workflows are stable.
+
+---
+
+# 32. Learning & Engineering Objective
+
+Buzzsynx is also a practical engineering project for developing deeper expertise across:
 
 * Full-stack architecture
 * Backend engineering
@@ -983,75 +1506,125 @@ Buzzsynx also serves as a practical engineering project for developing deeper ex
 * AI integration
 * Docker
 * GitHub Actions
-* Cloud deployment
 * AWS
+* Cloud deployment
 * Security
 * Observability
 * Production engineering
 
-The objective is to understand not only **how to build features**, but also:
+The objective is not simply to learn individual technologies.
 
-> **how the complete system behaves when those features operate together.**
+It is to understand:
+
+> **How a complete production-oriented system behaves when all of its components operate together.**
 
 ---
 
-# 22. Success Criteria
+# 33. Success Criteria
 
-Buzzsynx will be considered successful when it can demonstrate:
+Buzzsynx should ultimately demonstrate the following.
 
-### Functional Success
+## Functional
 
 * Businesses can onboard.
-* Users can work according to their permissions.
+* Users can work according to permissions.
 * Products can be managed.
-* Inventory can be tracked.
 * Purchases can be recorded.
+* Inventory can be tracked reliably.
 * Sales can be completed.
 * Payments can be processed.
 * Invoices can be generated.
+* Customers can be managed.
 * Analytics can be viewed.
 * AI can provide useful operational intelligence.
 
-### Architectural Success
+## Architectural
 
-* Modules remain maintainable.
+* Modules remain understandable and maintainable.
 * Tenant isolation is enforced.
+* Store-level access is enforced where required.
 * Business logic remains deterministic.
-* Infrastructure responsibilities are separated.
-* Background processing is reliable.
-* The system can evolve without major architectural rewrites.
+* PostgreSQL remains the transactional source of truth.
+* Redis remains an acceleration/temporary-data layer.
+* Background processing remains asynchronous.
+* AI remains separated from transactional authority.
+* The system can evolve without premature architectural complexity.
 
-### Operational Success
+## Operational
 
-* Application can be deployed.
-* Logs and errors can be observed.
-* Failures can be diagnosed.
-* Data can be backed up and recovered.
+* The application can be deployed reliably.
 * Releases can be controlled.
+* Errors can be observed.
+* Failures can be investigated.
+* Data can be backed up.
+* Recovery can be tested.
 * Critical workflows remain reliable.
 
 ---
 
-# 23. Final Product Principle
+# 34. Definition of Success
 
-Buzzsynx should ultimately behave as:
+Buzzsynx is not successful merely because:
 
 ```text
-A Business
+The application runs
+```
+
+It should demonstrate:
+
+```text
+Application
     ↓
-Runs its Operations
+Integrated Modules
     ↓
-Through Buzzsynx
+Reliable Business Workflows
     ↓
-Buzzsynx Records What Happened
+Correct Data
     ↓
-Analyzes What Happened
+Tenant Isolation
     ↓
-Identifies What Matters
+Security
     ↓
-Recommends What Could Happen Next
+Observability
     ↓
-Helps the Business Act
+Deployment
+    ↓
+Recoverability
+    ↓
+Real Business Utility
+```
+
+---
+
+# 35. Final Product Model
+
+Buzzsynx should ultimately operate as:
+
+```text
+                    BUSINESS
+                       │
+                       ↓
+                BUSINESS OPERATIONS
+                       │
+                       ↓
+                    BUZZSYNX
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+       RECORD       ANALYZE      AUTOMATE
+          │            │            │
+          └────────────┼────────────┘
+                       ↓
+                  AI INTELLIGENCE
+                       │
+                       ↓
+              INSIGHTS / SIGNALS
+                       │
+                       ↓
+                 BUSINESS USER
+                       │
+                       ↓
+                     ACTION
 ```
 
 The platform therefore combines:
@@ -1059,39 +1632,75 @@ The platform therefore combines:
 ```text
 Business Operations
         +
-Data
-        +
-Automation
+Transactional Data
         +
 Analytics
         +
-AI
+Automation
+        +
+AI Intelligence
 ```
 
 ---
 
-# 24. Final Statement
+# 36. Final Architectural Principles
 
-Buzzsynx is being designed as a **real-world, multi-tenant business operations platform** rather than a collection of disconnected features.
+Buzzsynx should follow these principles throughout development:
+
+> **Build the foundation correctly.**
+
+> **Keep business logic deterministic.**
+
+> **Keep tenant and store data isolated.**
+
+> **Use PostgreSQL as the transactional source of truth.**
+
+> **Use Redis for speed and temporary state, not business truth.**
+
+> **Use background jobs for asynchronous work.**
+
+> **Use AI for intelligence, not authority.**
+
+> **Protect critical workflows with transactions.**
+
+> **Make security part of every module.**
+
+> **Observe the system from the beginning.**
+
+> **Add complexity only when the system earns it.**
+
+> **Build for today's requirements while keeping tomorrow's evolution possible.**
+
+---
+
+# 37. Final Statement
+
+Buzzsynx is being designed as a **real-world, multi-tenant business operations platform** built around a shared business engine and configurable capabilities.
 
 Its foundation is:
 
-> **A shared business engine with configurable industry capabilities, strict tenant isolation, reliable transactional data, asynchronous processing, and AI-powered operational intelligence.**
+```text
+One Application
+      +
+Shared Business Engine
+      +
+Multiple Independent Businesses
+      +
+Configurable Capabilities
+      +
+Strict Tenant / Store Isolation
+      +
+Reliable Transactional Data
+      +
+Asynchronous Processing
+      +
+Analytics
+      +
+AI-Powered Operational Intelligence
+```
 
-The architecture should remain simple enough to understand, strong enough to support real business workflows, and modular enough to evolve as the product grows.
+The first implementation will focus on **supermarket/grocery retail**, allowing the core business engine to be validated against a real operational workflow before expanding into additional industries.
 
-### Core Principle
+The architecture should remain simple enough to understand, strong enough to handle real business transactions, secure enough for multi-tenant usage, observable enough to operate in production, and modular enough to evolve as Buzzsynx grows.
 
-> **Build the foundation correctly.**
->
-> **Keep business logic deterministic.**
->
-> **Keep tenant data isolated.**
->
-> **Use infrastructure for what infrastructure is good at.**
->
-> **Use AI for intelligence, not authority.**
->
-> **Add complexity only when the system earns it.**
-
-**Buzzsynx — First Brick, Not the Whole Building.**
+> **Buzzsynx — First Brick, Not the Whole Building.**
