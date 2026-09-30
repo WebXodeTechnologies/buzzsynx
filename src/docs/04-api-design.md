@@ -1,16 +1,28 @@
 # Buzzsynx — API Design
 
-## 1. Purpose
+**Version:** v0.2
+**Status:** Architecture-Aligned API Baseline
+**Product:** Buzzsynx
+**Architecture:** Multi-Tenant Modular Monolith
+**API Style:** REST
+**Backend:** Node.js + Express
+**Database:** PostgreSQL + Prisma
+**Cache / Queue:** Redis + BullMQ
 
-This document defines the API architecture and standards for Buzzsynx.
+---
 
-Buzzsynx uses a backend API to expose business functionality to the Next.js frontend and other authorized clients.
+# 1. Purpose
+
+This document defines the API architecture, conventions, security boundaries, request lifecycle, business-operation patterns, and development standards for Buzzsynx.
+
+The API is the application boundary between the Buzzsynx frontend and the business domain.
 
 The API must support:
 
 * Multi-tenant SaaS operations
 * Authentication
 * Authorization and RBAC
+* Tenant and store/branch isolation
 * Product management
 * Inventory management
 * Purchasing
@@ -21,29 +33,43 @@ The API must support:
 * Suppliers
 * Invoices
 * Analytics
+* Reports
 * AI capabilities
 * Notifications
-* Industry-specific capabilities
+* Industry capabilities
 * Audit logging
 
-The API must be designed for security, consistency, maintainability, and future scalability.
+The API must prioritize:
+
+* Security
+* Tenant isolation
+* Business correctness
+* Transaction integrity
+* Maintainability
+* Consistent contracts
+* Observability
+* Future extensibility
+
+The API is part of the **Buzzsynx modular monolith**. It should not introduce microservice complexity unless future requirements justify it.
 
 ---
 
 # 2. API Architecture
 
-Buzzsynx uses:
+Buzzsynx uses a REST API inside the modular monolith.
 
 ```text
 Next.js Frontend
        ↓
 HTTP / REST API
        ↓
-Node.js + Express
+Express
        ↓
-Application Modules
+Middleware
        ↓
-Services
+Controllers
+       ↓
+Application Services
        ↓
 Repositories / Prisma
        ↓
@@ -53,24 +79,27 @@ PostgreSQL
 Supporting infrastructure:
 
 ```text
-Express
- ├── Redis
- ├── BullMQ
- ├── AI Providers
- ├── S3 / Storage
- ├── Payment Providers
- └── External Services
+Express Application
+       │
+       ├── Redis
+       ├── BullMQ
+       ├── AI Providers
+       ├── Storage
+       ├── Payment Providers
+       └── External Services
 ```
 
-The API is part of the modular monolith and follows clear domain boundaries.
+The API does not communicate directly with PostgreSQL from controllers.
+
+Business operations must pass through the appropriate application/service layer.
 
 ---
 
 # 3. API Style
 
-Buzzsynx initially uses a **RESTful API**.
+Buzzsynx initially uses **RESTful APIs**.
 
-Example:
+Examples:
 
 ```text
 GET    /api/v1/products
@@ -82,29 +111,29 @@ DELETE /api/v1/products/:id
 
 REST is preferred initially because it provides:
 
-* Simple client integration
 * Clear HTTP semantics
+* Simple client integration
 * Easy debugging
-* Good tooling
 * Straightforward authorization
-* Easy testing
-* Future mobile-app compatibility
+* Good testing support
+* Mobile compatibility
+* Easy third-party integration
 
 GraphQL is not required for the initial architecture.
+
+It may be evaluated later only if the product develops a genuine need for highly flexible client-driven data fetching.
 
 ---
 
 # 4. API Versioning
 
-All public application APIs should use a version prefix.
-
-Example:
+Application APIs use a version prefix.
 
 ```text
 /api/v1
 ```
 
-Example:
+Examples:
 
 ```text
 /api/v1/products
@@ -113,13 +142,15 @@ Example:
 /api/v1/customers
 ```
 
-Future breaking API changes can use:
+A future breaking API contract may use:
 
 ```text
 /api/v2
 ```
 
-Versioning prevents breaking existing clients when major API contracts change.
+Versioning must be introduced deliberately.
+
+Minor backward-compatible changes should not require a new major API version.
 
 ---
 
@@ -145,16 +176,23 @@ https://api.buzzsynx.com/api/v1
 
 The exact production domains may change during deployment.
 
-The frontend must not hard-code environment-specific URLs.
+The frontend must obtain environment-specific API URLs through configuration and must not hard-code production URLs.
+
+Example:
+
+```text
+NEXT_PUBLIC_API_URL
+```
 
 ---
 
 # 6. API Module Structure
 
-The Express backend should be organized by business module.
+The Express backend is organized by business module.
 
 ```text
 src/server/modules/
+
 ├── auth/
 ├── tenants/
 ├── users/
@@ -173,10 +211,11 @@ src/server/modules/
 └── notifications/
 ```
 
-A typical module:
+A typical module may contain:
 
 ```text
 products/
+
 ├── product.routes.js
 ├── product.controller.js
 ├── product.service.js
@@ -185,13 +224,15 @@ products/
 └── product.constants.js
 ```
 
-The exact structure can evolve as implementation grows.
+The structure may evolve as implementation grows.
+
+The architecture should preserve domain boundaries even when the codebase remains a single deployable application.
 
 ---
 
 # 7. Request Lifecycle
 
-Every authenticated tenant request should follow this conceptual flow:
+Every authenticated tenant request should conceptually follow:
 
 ```text
 HTTP Request
@@ -204,11 +245,15 @@ Authentication
      ↓
 Tenant Resolution
      ↓
-RBAC
+Membership Resolution
+     ↓
+Store / Branch Scope
+     ↓
+RBAC / Permission Check
      ↓
 Capability Check
      ↓
-Validation
+Input Validation
      ↓
 Controller
      ↓
@@ -233,9 +278,40 @@ Structured Error
 HTTP Response
 ```
 
+Not every endpoint requires every step.
+
+For example, public authentication endpoints do not require an existing authenticated tenant context.
+
 ---
 
-# 8. Request ID
+# 8. Request Context
+
+The API should construct a trusted request context after authentication and authorization middleware.
+
+Conceptually:
+
+```text
+Request Context
+
+{
+  requestId,
+  userId,
+  tenantId,
+  membershipId,
+  roleIds,
+  permissionSet,
+  activeStoreId,
+  capabilities
+}
+```
+
+This context is derived from trusted server-side data.
+
+The application must not blindly accept these values from the request body.
+
+---
+
+# 9. Request ID
 
 Every API request should have a unique request identifier.
 
@@ -245,26 +321,41 @@ Example:
 X-Request-ID: req_01JXYZ...
 ```
 
-If the client provides a valid request ID, the system may propagate it according to security rules.
+If a client provides a request ID, the server should validate it according to the application's security and tracing rules.
 
-Otherwise, the API should generate one.
+Otherwise, the server generates one.
 
-Request IDs should be included in:
+Request IDs should be available in:
 
-* Logs
-* Error reports
-* Sentry events
-* Debugging information
+* Application logs
+* Error responses where appropriate
+* Error monitoring
+* Background job metadata where useful
+* Distributed tracing where implemented
 
-This makes production troubleshooting significantly easier.
+Request IDs must not contain sensitive information.
 
 ---
 
-# 9. Authentication
+# 10. Authentication
 
-Authentication determines **who the user is**.
+Authentication determines:
 
-Supported authentication methods may include:
+> **Who is the user?**
+
+Authentication is separate from authorization.
+
+```text
+Authentication
+      ↓
+Who are you?
+
+Authorization
+      ↓
+What are you allowed to do?
+```
+
+Initial authentication may support:
 
 ```text
 Email + Password
@@ -278,21 +369,11 @@ Passkeys
 Enterprise SSO
 ```
 
-Authentication is separate from authorization.
-
-```text
-Authentication
-     ↓
-Who are you?
-
-Authorization
-     ↓
-What are you allowed to do?
-```
+Authentication implementation must use secure session/token practices appropriate to the chosen architecture.
 
 ---
 
-# 10. Authentication Endpoints
+# 11. Authentication Endpoints
 
 Initial endpoints:
 
@@ -304,7 +385,7 @@ POST /api/v1/auth/refresh
 GET  /api/v1/auth/me
 ```
 
-Potential future endpoints:
+Additional endpoints may include:
 
 ```text
 POST /api/v1/auth/forgot-password
@@ -314,132 +395,159 @@ GET  /api/v1/auth/google
 GET  /api/v1/auth/google/callback
 ```
 
+Only authentication mechanisms actually implemented should be exposed.
+
 ---
 
-# 11. Registration Workflow
+# 12. Registration Workflow
 
-Example:
+Buzzsynx onboarding creates the initial business context.
 
-```text
-POST /api/v1/auth/register
-```
-
-Flow:
+Conceptually:
 
 ```text
-Request
-  ↓
-Validate input
-  ↓
-Check email
-  ↓
-Hash password
-  ↓
+Registration Request
+        ↓
+Validate Input
+        ↓
+Check User
+        ↓
 Create User
-  ↓
-Create Tenant
-  ↓
-Create TenantUser
-  ↓
-Assign Owner Role
-  ↓
+        ↓
+Create Tenant / Business
+        ↓
+Create Initial Store / Branch
+        ↓
+Select Industry / Capability Configuration
+        ↓
 Create Business Settings
-  ↓
+        ↓
+Create Initial Membership
+        ↓
+Assign Owner Role
+        ↓
 Create Default Configuration
-  ↓
-Return authenticated session
+        ↓
+Create Authenticated Session
+        ↓
+Return Response
 ```
 
-This operation may require a database transaction.
+The core onboarding operation should use an appropriate database transaction.
+
+The person creating the business receives the **Owner** membership.
+
+Platform review or administrative approval, where required, should not unnecessarily block normal onboarding.
+
+Tenant lifecycle may be:
+
+```text
+PENDING
+   ↓
+ACTIVE
+   ↓
+SUSPENDED
+   ↓
+ARCHIVED
+```
+
+The exact lifecycle rules belong to the tenant/domain layer.
 
 ---
 
-# 12. Login Workflow
+# 13. Login Workflow
 
 ```text
 POST /api/v1/auth/login
 ```
 
-Flow:
+Conceptual flow:
 
 ```text
 Credentials
-     ↓
-Validate input
-     ↓
-Find user
-     ↓
-Verify password
-     ↓
-Resolve tenant membership
-     ↓
-Resolve role
-     ↓
-Create session/token
-     ↓
-Return authenticated response
+    ↓
+Validate Input
+    ↓
+Find User
+    ↓
+Verify Credentials
+    ↓
+Resolve Membership
+    ↓
+Resolve Active Tenant
+    ↓
+Resolve Active Store Scope
+    ↓
+Create Session / Token
+    ↓
+Return Authenticated Response
 ```
 
-Failed authentication should return a generic authentication error rather than exposing sensitive account information.
+Failed authentication should use appropriate generic errors and should not expose sensitive account information.
 
 ---
 
-# 13. Session Strategy
+# 14. Session Strategy
 
-The exact session implementation will be finalized during authentication implementation.
+The exact implementation is finalized during authentication development.
 
 The architecture must support:
 
 * Secure session handling
-* Token expiration
-* Refresh/re-authentication
+* Expiration
+* Refresh or re-authentication
 * Logout/revocation where applicable
 * Secure cookies or equivalent secure token handling
 * CSRF protection where cookie-based authentication requires it
+* Session invalidation when necessary
 
-Sensitive authentication tokens must never be logged.
+Sensitive authentication material must never be logged.
 
 ---
 
-# 14. Tenant Resolution
+# 15. Tenant and Store Resolution
 
-Tenant context is one of the most important API security requirements.
+Tenant isolation is a critical API security boundary.
 
-The API must establish:
+Buzzsynx hierarchy:
+
+```text
+Super Admin
+     ↓
+Tenant / Business
+     ↓
+Store / Branch
+     ↓
+Membership / User
+```
+
+A request must establish:
 
 ```text
 currentUser
 currentTenant
-currentRole
+currentMembership
+currentStore
+permissions
+capabilities
 ```
 
-before executing tenant business operations.
+where applicable.
 
-Preferred conceptual flow:
-
-```text
-Authenticated User
-       ↓
-Tenant Membership
-       ↓
-Tenant Context
-       ↓
-RBAC
-       ↓
-Business Operation
-```
-
-The API must never blindly trust:
+The backend must never blindly trust:
 
 ```text
 tenantId
+storeId
 ```
 
 provided by the browser.
 
+Client-provided IDs may be used as operation inputs only after the server verifies that they belong to the authenticated tenant and that the user is authorized to access them.
+
 ---
 
-# 15. Tenant-Scoped API
+# 16. Tenant-Scoped APIs
 
 Most business endpoints operate within the authenticated tenant context.
 
@@ -449,13 +557,15 @@ Example:
 GET /api/v1/products
 ```
 
-The backend internally resolves:
+The server derives:
 
 ```text
 currentTenantId
 ```
 
-and queries:
+from trusted authentication and membership context.
+
+Queries must enforce tenant scope:
 
 ```javascript
 where: {
@@ -463,13 +573,24 @@ where: {
 }
 ```
 
-The client does not need to provide a tenant ID for normal tenant operations.
+For store-scoped resources, the query must additionally enforce the appropriate store scope.
+
+Example:
+
+```javascript
+where: {
+  tenantId: currentTenantId,
+  storeId: currentStoreId
+}
+```
+
+Tenant isolation must exist at the application/service/data-access boundary, not merely in the frontend.
 
 ---
 
-# 16. System-Level APIs
+# 17. System-Level APIs
 
-Some APIs may be system-level rather than tenant-level.
+Some endpoints are platform-level.
 
 Examples:
 
@@ -478,45 +599,110 @@ GET /api/v1/system/health
 GET /api/v1/system/version
 ```
 
-These should not use ordinary tenant authorization.
+These do not use ordinary tenant authorization.
 
-System endpoints must have their own security rules.
+Platform endpoints must have their own security rules.
+
+For example:
+
+```text
+Super Admin
+```
+
+may access administrative platform APIs that ordinary tenant users cannot.
+
+Public health checks should expose only the minimum information necessary.
 
 ---
 
-# 17. Authorization
+# 18. Authorization
 
-Authorization is handled using:
+Authorization combines:
 
 ```text
-RBAC
+Authentication
 +
 Tenant Membership
 +
-Capability Checks
+Role / Permissions
++
+Store Scope
++
+Capability
 ```
 
-Example:
+Conceptually:
 
 ```text
 User
  ↓
-TenantUser
+Membership
  ↓
 Role
  ↓
 Permissions
  ↓
-Endpoint
+Tenant Scope
+ ↓
+Store Scope
+ ↓
+Capability
+ ↓
+Endpoint / Operation
 ```
+
+RBAC determines what the user is allowed to perform.
+
+Capability configuration determines whether the tenant has the relevant business functionality enabled.
 
 ---
 
-# 18. Permission Naming
+# 19. Current Buzzsynx Roles
 
-Permissions should follow a predictable convention.
+The initial role model is:
 
-Example:
+```text
+Super Admin
+Owner
+Admin / Manager
+Cashier
+Accountant
+Store Staff
+```
+
+### Super Admin
+
+Platform-level management.
+
+### Owner
+
+Business owner and highest tenant-level operational role.
+
+### Admin / Manager
+
+Operational management according to assigned permissions.
+
+### Cashier
+
+POS and payment-related operations according to assigned permissions.
+
+### Accountant
+
+Financial, payment, reporting, and accounting-related operations according to assigned permissions.
+
+### Store Staff
+
+Operational store functions according to assigned permissions.
+
+Permissions, rather than role names alone, should determine actual access.
+
+---
+
+# 20. Permission Naming
+
+Permissions should use a predictable convention.
+
+Recommended:
 
 ```text
 resource.action
@@ -547,39 +733,40 @@ customer.view
 customer.create
 customer.update
 
-report.view
+payment.view
+payment.create
+payment.refund
 
+report.view
 settings.view
 settings.update
 ```
 
-This makes authorization rules easier to understand and maintain.
+Permission names should remain stable once exposed to application logic.
 
 ---
 
-# 19. Capability Authorization
+# 21. Capability Authorization
 
-RBAC determines what a user can do.
-
-Industry capability determines whether the tenant has a particular business feature.
-
-Example:
+RBAC and industry capability are separate concepts.
 
 ```text
 User Permission
       +
 Tenant Capability
+      +
+Store Scope
       ↓
 Allowed Operation
 ```
 
-Example:
+For example:
 
 ```text
 medicine.batch.manage
 ```
 
-should only be available when the tenant has the pharmacy capability enabled.
+should only be available when the appropriate pharmacy capability is enabled.
 
 Similarly:
 
@@ -589,9 +776,13 @@ restaurant.recipe.manage
 
 belongs to the restaurant capability.
 
+Capability checks must be enforced by the backend.
+
+They must not exist only as frontend feature flags.
+
 ---
 
-# 20. Product APIs
+# 22. Product APIs
 
 Core endpoints:
 
@@ -603,28 +794,37 @@ PATCH  /api/v1/products/:id
 DELETE /api/v1/products/:id
 ```
 
-Additional:
+Additional endpoints:
 
 ```text
-GET /api/v1/products/:id/stock
-GET /api/v1/products/:id/movements
-GET /api/v1/products/:id/variants
+GET  /api/v1/products/:id/stock
+GET  /api/v1/products/:id/movements
+GET  /api/v1/products/:id/variants
 POST /api/v1/products/:id/variants
 ```
 
+Product APIs must respect:
+
+* Tenant scope
+* Store scope where applicable
+* Permissions
+* Capability requirements
+
+Product master data should be distinguished from store-specific stock and pricing data where the domain model requires it.
+
 ---
 
-# 21. Product Search
+# 23. Product Search
 
-POS and inventory interfaces require fast product lookup.
+POS and inventory workflows require fast product lookup.
 
 Example:
 
 ```text
-GET /api/v1/products/search?q=paracetamol
+GET /api/v1/products/search?q=milk
 ```
 
-Barcode:
+Barcode lookup:
 
 ```text
 GET /api/v1/products/barcode/:barcode
@@ -633,17 +833,19 @@ GET /api/v1/products/barcode/:barcode
 Search may support:
 
 ```text
-name
+Name
 SKU
-barcode
-variant SKU
+Barcode
+Variant SKU
 ```
 
-Search performance should be optimized using PostgreSQL indexes before introducing a dedicated search engine.
+PostgreSQL indexes should be used before introducing a dedicated search engine.
+
+The POS search path should be optimized for frequent lookups.
 
 ---
 
-# 22. Category APIs
+# 24. Category APIs
 
 ```text
 GET    /api/v1/categories
@@ -653,11 +855,11 @@ PATCH  /api/v1/categories/:id
 DELETE /api/v1/categories/:id
 ```
 
-All tenant-scoped.
+All category operations are tenant-scoped.
 
 ---
 
-# 23. Brand APIs
+# 25. Brand APIs
 
 ```text
 GET    /api/v1/brands
@@ -667,9 +869,11 @@ PATCH  /api/v1/brands/:id
 DELETE /api/v1/brands/:id
 ```
 
+All brand operations are tenant-scoped.
+
 ---
 
-# 24. Inventory APIs
+# 26. Inventory APIs
 
 Core endpoints:
 
@@ -681,12 +885,13 @@ POST /api/v1/inventory/adjustments
 POST /api/v1/inventory/transfers
 ```
 
-Inventory should not expose unrestricted quantity mutation.
+Inventory quantity must not be freely mutated through a generic update endpoint.
 
-Incorrect design:
+Avoid:
 
 ```text
-PATCH /inventory/:id
+PATCH /api/v1/inventory/:id
+
 {
   "quantity": 500
 }
@@ -698,60 +903,92 @@ Preferred:
 POST /api/v1/inventory/adjustments
 ```
 
-with:
+The system records the business reason and corresponding stock movement.
 
-```text
-reason
-quantity
-movementType
-```
-
-This preserves the inventory ledger.
+PostgreSQL remains the authoritative source of inventory state.
 
 ---
 
-# 25. Stock Adjustment API
+# 27. Inventory Movement Model
 
-Example:
+Inventory-affecting business operations should create appropriate stock movements.
+
+Examples:
+
+```text
+PURCHASE
+SALE
+RETURN
+TRANSFER
+DAMAGE
+EXPIRY
+ADJUSTMENT
+```
+
+The exact movement enum is defined by the database/domain model.
+
+Conceptually:
+
+```text
+Business Event
+      ↓
+Stock Movement
+      ↓
+Inventory Balance Update
+```
+
+The movement and balance update must occur atomically where the operation is transactional.
+
+---
+
+# 28. Stock Adjustment API
 
 ```text
 POST /api/v1/inventory/adjustments
 ```
 
-Request:
+Example:
 
 ```json
 {
   "productId": "product_id",
-  "locationId": "location_id",
-  "quantity": 5,
+  "storeId": "store_id",
+  "countedQuantity": 95,
   "reason": "Physical stock count correction"
 }
 ```
 
-Backend:
+The backend should:
 
 ```text
-Validate permission
-      ↓
-Validate product
-      ↓
-Validate location
-      ↓
-Create adjustment
-      ↓
-Create inventory movement
-      ↓
-Update stock
-      ↓
-Audit
+Validate Permission
+       ↓
+Resolve Tenant
+       ↓
+Validate Store Scope
+       ↓
+Validate Product
+       ↓
+Read Current Stock
+       ↓
+Calculate Adjustment Delta
+       ↓
+Create Adjustment / Movement
+       ↓
+Update Inventory Balance
+       ↓
+Create Audit Record
+       ↓
+COMMIT
 ```
 
-The operation should be transactional.
+The operation must be transactional.
+
+The client should not be trusted to provide the final adjustment delta without server-side verification.
 
 ---
 
-# 26. Stock Transfer API
+# 29. Stock Transfer API
 
 ```text
 POST /api/v1/inventory/transfers
@@ -759,26 +996,37 @@ GET  /api/v1/inventory/transfers
 GET  /api/v1/inventory/transfers/:id
 ```
 
-Example:
+Conceptual flow:
 
 ```text
-Warehouse
-   ↓
+Source Store
+     ↓
 Transfer
-   ↓
-Branch
+     ↓
+Destination Store
 ```
 
-The transfer should produce corresponding movement records:
+A completed transfer should produce corresponding inventory movements, such as:
 
 ```text
 TRANSFER_OUT
 TRANSFER_IN
 ```
 
+The transfer must validate:
+
+* Source scope
+* Destination scope
+* Product
+* Available quantity
+* Authorization
+* Transfer state
+
+The exact transaction model is defined in the inventory design.
+
 ---
 
-# 27. Supplier APIs
+# 30. Supplier APIs
 
 ```text
 GET    /api/v1/suppliers
@@ -788,9 +1036,13 @@ PATCH  /api/v1/suppliers/:id
 DELETE /api/v1/suppliers/:id
 ```
 
+Supplier operations are tenant-scoped.
+
 ---
 
-# 28. Purchase APIs
+# 31. Purchase APIs
+
+Purchase APIs may support:
 
 ```text
 GET  /api/v1/purchases
@@ -801,39 +1053,63 @@ POST /api/v1/purchases/:id/receive
 POST /api/v1/purchases/:id/cancel
 ```
 
-Receiving stock must use the purchase receiving workflow.
+The exact purchase lifecycle depends on the implemented purchasing model.
+
+A purchase order is not required to be a mandatory step if the MVP uses direct purchase/receiving entry.
+
+Possible workflow:
+
+```text
+Supplier
+   ↓
+Purchase / Purchase Order
+   ↓
+Receive Goods
+   ↓
+Verify Quantities / Cost
+   ↓
+Inventory Movement
+   ↓
+Inventory Balance
+```
 
 ---
 
-# 29. Purchase Receiving
-
-The endpoint:
+# 32. Purchase Receiving
 
 ```text
 POST /api/v1/purchases/:id/receive
 ```
 
-should execute:
+Conceptual flow:
 
 ```text
-Validate purchase
-      ↓
-Validate receiving quantities
-      ↓
-Create inventory movements
-      ↓
-Update stock
-      ↓
-Update purchase status
-      ↓
-Audit
+Validate Purchase
+       ↓
+Validate Tenant / Store Scope
+       ↓
+Validate Receiving Quantities
+       ↓
+BEGIN TRANSACTION
+       ↓
+Create Receiving Record
+       ↓
+Create Inventory Movements
+       ↓
+Update Inventory Balance
+       ↓
+Update Purchase Status
+       ↓
+Create Audit Record
+       ↓
+COMMIT
 ```
 
-This must be transactional.
+Receiving must be idempotent where duplicate requests could create duplicate stock.
 
 ---
 
-# 30. Customer APIs
+# 33. Customer APIs
 
 ```text
 GET    /api/v1/customers
@@ -851,29 +1127,44 @@ GET /api/v1/customers/:id/payments
 GET /api/v1/customers/:id/summary
 ```
 
+A customer is optional for ordinary walk-in POS sales unless a specific business rule requires customer identification.
+
+Therefore:
+
+```text
+Walk-in Sale
+```
+
+is valid without creating a customer record.
+
 ---
 
-# 31. POS APIs
+# 34. POS APIs
 
-POS requires fast and transaction-safe APIs.
+POS APIs must prioritize speed and transaction correctness.
+
+The POS cart can primarily remain client-side until checkout.
 
 Possible endpoints:
 
 ```text
-POST /api/v1/pos/cart
 GET  /api/v1/pos/products/search
-POST /api/v1/pos/sales
-POST /api/v1/pos/sales/:id/pay
-GET  /api/v1/pos/sales/:id
+POST /api/v1/sales
+GET  /api/v1/sales/:id
 ```
 
-However, cart state may remain primarily client-side until checkout.
+A server-side cart/session API may be introduced if required for:
 
-The most important server operation is the sale transaction.
+* Multi-device workflows
+* Suspended carts
+* Persistent carts
+* Complex POS sessions
+
+The initial architecture does not require a server-side cart for every checkout.
 
 ---
 
-# 32. Sale Creation
+# 35. Sale Creation API
 
 Primary endpoint:
 
@@ -881,12 +1172,12 @@ Primary endpoint:
 POST /api/v1/sales
 ```
 
-Example request:
+Example:
 
 ```json
 {
+  "storeId": "store_id",
   "customerId": "customer_id",
-  "locationId": "location_id",
   "items": [
     {
       "productId": "product_id",
@@ -908,70 +1199,117 @@ The server must calculate authoritative values.
 The client must not be trusted for:
 
 ```text
-finalTotal
-stockAvailability
-taxAmount
-discountAmount
-unitPrice
+Final Total
+Stock Availability
+Tax Amount
+Discount Amount
+Unit Price
 ```
 
 where those values are determined by server-side business rules.
 
 ---
 
-# 33. Critical Sale Transaction
+# 36. Critical Sale Transaction
 
-The sale endpoint should execute conceptually:
+The sale operation conceptually follows:
 
 ```text
 Request
-  ↓
+   ↓
 Authentication
-  ↓
-Tenant resolution
-  ↓
-Permission check
-  ↓
-Validate input
-  ↓
-Load products
-  ↓
-Resolve prices
-  ↓
-Validate stock
-  ↓
-Calculate totals
-  ↓
+   ↓
+Tenant Resolution
+   ↓
+Store Scope
+   ↓
+Permission Check
+   ↓
+Input Validation
+   ↓
+Load Products
+   ↓
+Resolve Prices
+   ↓
+Validate Stock
+   ↓
+Calculate Totals
+   ↓
 BEGIN TRANSACTION
-  ↓
+   ↓
 Create Sale
-  ↓
+   ↓
 Create Sale Items
-  ↓
-Create Payments
-  ↓
+   ↓
+Create Payment Records
+   ↓
 Create Inventory Movements
-  ↓
-Update Stock
-  ↓
-Create Invoice
-  ↓
-Create Audit Log
-  ↓
+   ↓
+Update Inventory Balance
+   ↓
+Create Invoice Record
+   ↓
+Create Audit Record
+   ↓
 COMMIT
 ```
 
-If any critical step fails:
+If a critical operation fails:
 
 ```text
 ROLLBACK
 ```
 
+The exact internal database ordering may differ as long as the required invariants are preserved.
+
 ---
 
-# 34. Idempotency
+# 37. Sale Transaction Boundary
 
-Critical APIs should support idempotency where duplicate requests could create financial or inventory problems.
+The core sale transaction should contain only operations required to finalize the business transaction.
+
+Do not perform long-running work inside the critical transaction.
+
+Avoid:
+
+```text
+Sale Transaction
+   ↓
+Generate PDF
+   ↓
+Call AI
+   ↓
+Send Email
+   ↓
+Send WhatsApp
+   ↓
+External Analytics
+   ↓
+COMMIT
+```
+
+Preferred:
+
+```text
+Sale Transaction
+   ↓
+Commit
+   ↓
+Post-Commit Events / Jobs
+   ├── Generate Invoice PDF
+   ├── Send Notification
+   ├── Send Email / WhatsApp
+   ├── Update Analytics
+   └── Trigger AI-related processing
+```
+
+The sale should not fail because a non-critical notification provider is temporarily unavailable.
+
+---
+
+# 38. Idempotency
+
+Critical APIs must support idempotency where duplicate requests can create financial or inventory problems.
 
 Especially:
 
@@ -982,27 +1320,30 @@ POST /refunds
 POST /purchases/:id/receive
 ```
 
-Example header:
+Example:
 
 ```text
 Idempotency-Key: unique-client-operation-id
 ```
 
-The server should prevent accidental duplicate processing.
+The server should associate the key with the operation and prevent accidental duplicate processing.
 
-This is particularly important for:
+This protects against:
 
+* Double-clicks
 * Network retries
-* Double clicks
-* Mobile connections
-* Payment callbacks
-* Client reconnects
+* Browser reconnects
+* Mobile connectivity problems
+* Payment retries
+* Webhook duplicate delivery
+
+Idempotency implementation must be tenant-aware and transaction-safe.
 
 ---
 
-# 35. Payment APIs
+# 39. Payment APIs
 
-Core endpoints:
+Core endpoints may include:
 
 ```text
 POST /api/v1/payments
@@ -1010,31 +1351,161 @@ GET  /api/v1/payments/:id
 POST /api/v1/payments/:id/refund
 ```
 
-External payment integrations may also require webhook endpoints:
+Payment methods may include:
+
+```text
+Cash
+UPI
+Card
+Other configured methods
+```
+
+External payment integrations may use:
 
 ```text
 POST /api/v1/payments/webhooks/:provider
 ```
 
-Webhook handling must verify provider signatures before processing events.
+Webhook authenticity must be verified before processing.
 
----
+Payment state should be explicit.
 
-# 36. Invoice APIs
+Example:
 
 ```text
-GET  /api/v1/invoices
-GET  /api/v1/invoices/:id
-GET  /api/v1/invoices/:id/pdf
+PENDING
+AUTHORIZED
+PAID
+FAILED
+REFUNDED
+PARTIALLY_REFUNDED
 ```
 
-Invoice creation should generally occur as part of the appropriate sale transaction.
-
-The API should not allow arbitrary invoice manipulation after finalization.
+The exact states depend on the payment integration model.
 
 ---
 
-# 37. Returns APIs
+# 40. Payment and Sale Consistency
+
+For internal/manual payment methods, the sale transaction can coordinate:
+
+```text
+Sale
+Payment
+Inventory
+Invoice
+```
+
+within the appropriate database transaction.
+
+External payment providers require additional handling.
+
+Example:
+
+```text
+Create Payment Intent
+        ↓
+External Provider
+        ↓
+Provider Confirmation
+        ↓
+Webhook
+        ↓
+Verify Signature
+        ↓
+Idempotency Check
+        ↓
+Update Payment State
+        ↓
+Finalize Appropriate Business State
+```
+
+The system must not assume that an external payment request succeeding means the webhook or final settlement has already been safely recorded.
+
+Payment reconciliation must handle delayed, duplicated, or missing callbacks.
+
+---
+
+# 41. Split Payments
+
+A sale may support multiple payment records when the business capability requires it.
+
+Example:
+
+```text
+Sale Total = ₹1,000
+
+Cash = ₹400
+UPI  = ₹600
+```
+
+The API should represent these as separate payment allocations rather than overwriting a single payment record.
+
+The service must verify:
+
+```text
+sum(payment allocations)
+=
+amount required for settlement
+```
+
+subject to the supported credit/partial-payment rules.
+
+---
+
+# 42. Credit / Receivables
+
+Credit sales must not be represented as an ordinary successful payment.
+
+Where credit functionality is enabled:
+
+```text
+Sale
+ ↓
+Receivable / Outstanding Balance
+ ↓
+Future Payment
+```
+
+The exact accounting model belongs to the financial/accounting design.
+
+Credit functionality should only be exposed when the tenant capability and permissions permit it.
+
+---
+
+# 43. Invoice APIs
+
+```text
+GET /api/v1/invoices
+GET /api/v1/invoices/:id
+GET /api/v1/invoices/:id/pdf
+```
+
+The sale transaction should create the authoritative invoice record when required.
+
+The actual PDF generation may occur asynchronously after the transaction commits.
+
+Example:
+
+```text
+Sale Transaction
+      ↓
+Invoice Record
+      ↓
+COMMIT
+      ↓
+Invoice PDF Job
+      ↓
+Storage
+```
+
+Finalized invoices should not be arbitrarily modified through generic update endpoints.
+
+Corrections should use supported business workflows such as cancellation, credit note, return, or replacement where applicable.
+
+---
+
+# 44. Returns APIs
 
 ```text
 POST /api/v1/sales/:id/returns
@@ -1046,24 +1517,40 @@ POST /api/v1/returns/:id/refund
 Return processing should:
 
 ```text
-Validate original sale
-      ↓
-Validate returnable quantity
-      ↓
-Create return
-      ↓
-Create inventory movement
-      ↓
-Process refund if applicable
-      ↓
+Validate Original Sale
+       ↓
+Validate Returnable Quantity
+       ↓
+Validate Authorization
+       ↓
+Determine Return Disposition
+       ↓
+Create Return Record
+       ↓
+Create Inventory Movement if applicable
+       ↓
+Process Refund / Credit if applicable
+       ↓
 Audit
 ```
 
+Not every returned item must automatically return to sellable stock.
+
+Examples:
+
+```text
+Resellable → RETURN
+Damaged    → DAMAGE
+Expired    → EXPIRY
+```
+
+The exact disposition rules belong to inventory/business logic.
+
 ---
 
-# 38. Analytics APIs
+# 45. Analytics APIs
 
-Analytics endpoints are read-focused.
+Analytics APIs are primarily read-focused.
 
 Examples:
 
@@ -1076,11 +1563,25 @@ GET /api/v1/analytics/customers
 GET /api/v1/analytics/profit
 ```
 
-Analytics APIs should not directly mutate transactional records.
+Analytics must not directly mutate transactional business records.
+
+Analytics may consume:
+
+```text
+Sales
+Purchases
+Inventory Movements
+Payments
+Customers
+```
+
+through queries, aggregation, read models, or background processing.
 
 ---
 
-# 39. Reporting APIs
+# 46. Reporting APIs
+
+Examples:
 
 ```text
 GET /api/v1/reports/sales
@@ -1102,12 +1603,15 @@ Response:
 
 ```json
 {
-  "jobId": "job_id",
-  "status": "QUEUED"
+  "success": true,
+  "data": {
+    "jobId": "job_id",
+    "status": "QUEUED"
+  }
 }
 ```
 
-Then:
+Status:
 
 ```text
 GET /api/v1/reports/jobs/:jobId
@@ -1115,9 +1619,9 @@ GET /api/v1/reports/jobs/:jobId
 
 ---
 
-# 40. AI APIs
+# 47. AI APIs
 
-AI endpoints should expose business intelligence rather than unrestricted AI operations.
+Buzzsynx AI provides business intelligence rather than unrestricted database access.
 
 Examples:
 
@@ -1129,7 +1633,7 @@ POST /api/v1/ai/analyze/sales
 POST /api/v1/ai/analyze/inventory
 ```
 
-AI processing may be asynchronous.
+AI processing may be synchronous for lightweight operations or asynchronous for expensive operations.
 
 Example:
 
@@ -1141,8 +1645,11 @@ Response:
 
 ```json
 {
-  "jobId": "job_id",
-  "status": "QUEUED"
+  "success": true,
+  "data": {
+    "jobId": "job_id",
+    "status": "QUEUED"
+  }
 }
 ```
 
@@ -1153,48 +1660,98 @@ BullMQ
    ↓
 AI Service
    ↓
+Approved Business Data
+   ↓
 Analysis
    ↓
-AIInsight
+AI Insight
    ↓
 PostgreSQL
 ```
 
 ---
 
-# 41. AI Safety Boundary
+# 48. AI Safety Boundary
 
-AI should not directly bypass normal business services.
+AI must remain inside controlled business workflows.
 
 Incorrect:
 
 ```text
-AI → PostgreSQL → Inventory Mutation
+AI
+ ↓
+PostgreSQL
+ ↓
+Inventory Mutation
 ```
 
 Preferred:
 
 ```text
+Business Data
+      ↓
 AI
- ↓
-Recommendation
- ↓
-User / Business Rule
- ↓
-Normal Service
- ↓
+      ↓
+Insight / Recommendation
+      ↓
+User or Deterministic Business Rule
+      ↓
+Normal Application Service
+      ↓
 Validation
- ↓
+      ↓
 Transaction
- ↓
-Database
+      ↓
+PostgreSQL
 ```
 
-This keeps AI explainable and controlled.
+AI must not directly bypass:
+
+* Tenant isolation
+* Authorization
+* Inventory rules
+* Payment rules
+* Financial controls
+* Audit requirements
+
+AI output is advisory unless a deterministic business workflow explicitly defines an automated action.
 
 ---
 
-# 42. Notification APIs
+# 49. AI Data Access
+
+AI services should receive only the data required for the requested analysis.
+
+AI providers should not receive unrestricted database credentials.
+
+Preferred:
+
+```text
+API
+ ↓
+AI Service
+ ↓
+Approved Query / Analytics Layer
+ ↓
+Sanitized Business Data
+ ↓
+AI Provider
+```
+
+AI output should be traceable to:
+
+* Tenant
+* Relevant business scope
+* Analysis type
+* Time range
+* Source data or metrics where practical
+* Model/provider metadata where required
+
+---
+
+# 50. Notification APIs
+
+User-facing notification APIs:
 
 ```text
 GET   /api/v1/notifications
@@ -1202,23 +1759,25 @@ PATCH /api/v1/notifications/:id/read
 PATCH /api/v1/notifications/read-all
 ```
 
-Notification creation may happen through background workers.
+Notifications may be created through background jobs.
 
 Example:
 
 ```text
-Low Stock
-   ↓
+Low Stock Signal
+      ↓
 BullMQ
-   ↓
+      ↓
 Notification Worker
-   ↓
+      ↓
 Notification
 ```
 
+Notification failure should not normally roll back a completed business transaction.
+
 ---
 
-# 43. User APIs
+# 51. User APIs
 
 ```text
 GET   /api/v1/users/me
@@ -1229,57 +1788,125 @@ PATCH /api/v1/users/:id
 PATCH /api/v1/users/:id/status
 ```
 
-Administrative user operations require appropriate permissions.
+Administrative operations require appropriate permissions.
+
+User operations must respect tenant and store membership boundaries.
 
 ---
 
-# 44. Role and Permission APIs
+# 52. Membership APIs
+
+Because Buzzsynx is multi-tenant, user membership should be treated separately from the global user identity.
+
+Possible endpoints:
 
 ```text
-GET  /api/v1/roles
-POST /api/v1/roles
+GET   /api/v1/members
+POST  /api/v1/members
+GET   /api/v1/members/:id
+PATCH /api/v1/members/:id
+PATCH /api/v1/members/:id/status
+```
+
+Membership may define:
+
+```text
+User
+Tenant
+Role
+Store Scope
+Status
+```
+
+A single user may eventually belong to multiple tenants, subject to the account model.
+
+---
+
+# 53. Role and Permission APIs
+
+Possible endpoints:
+
+```text
+GET   /api/v1/roles
+POST  /api/v1/roles
 PATCH /api/v1/roles/:id
-GET  /api/v1/permissions
+
+GET   /api/v1/permissions
 ```
 
-Role assignment:
+Role assignment should be handled through membership operations rather than assuming a global user role.
+
+Example:
 
 ```text
-PATCH /api/v1/users/:id/role
+PATCH /api/v1/members/:id/role
 ```
 
-Changing an owner's permissions should have additional safeguards.
+Changing high-privilege roles should require appropriate safeguards and auditing.
+
+The exact custom-role capability may be introduced later if required.
 
 ---
 
-# 45. Tenant APIs
+# 54. Tenant APIs
 
-Tenant management:
+Current tenant APIs may include:
 
 ```text
 GET   /api/v1/tenants/current
 PATCH /api/v1/tenants/current
+
 GET   /api/v1/tenants/current/settings
 PATCH /api/v1/tenants/current/settings
 ```
 
-Future multi-tenant account management may include:
+Tenant-level administrative APIs may include:
 
 ```text
 GET  /api/v1/tenants
-POST /api/v1/tenants
-POST /api/v1/tenants/:id/members
+POST /api/v1/tenants/:id/suspend
+POST /api/v1/tenants/:id/activate
 ```
 
-These should only be exposed when the account model requires them.
+These platform-level operations require Super Admin authorization.
 
 ---
 
-# 46. Industry Capability APIs
+# 55. Store / Branch APIs
 
-Industry-specific APIs should be namespaced where appropriate.
+Because Buzzsynx supports multiple stores/branches:
 
-### Pharmacy
+```text
+GET   /api/v1/stores
+POST  /api/v1/stores
+GET   /api/v1/stores/:id
+PATCH /api/v1/stores/:id
+PATCH /api/v1/stores/:id/status
+```
+
+Store operations must verify tenant ownership.
+
+Store-level users must only access stores assigned to them unless their role explicitly grants broader tenant scope.
+
+---
+
+# 56. Industry Capability APIs
+
+Industry capabilities are extensibility boundaries.
+
+They should not make pharmacy, clothing, restaurant, and supermarket functionality mandatory for the initial MVP.
+
+The first complete implementation is:
+
+```text
+Supermarket / Grocery
+```
+
+Other industries are future capability extensions.
+
+Where required, industry-specific APIs may be namespaced.
+
+### Pharmacy — Future Capability
 
 ```text
 GET  /api/v1/pharmacy/medicines
@@ -1289,7 +1916,7 @@ POST /api/v1/pharmacy/batches
 GET  /api/v1/pharmacy/expiry
 ```
 
-### Restaurant
+### Restaurant — Future Capability
 
 ```text
 GET  /api/v1/restaurant/menu
@@ -1299,68 +1926,77 @@ POST /api/v1/restaurant/recipes
 GET  /api/v1/restaurant/tables
 ```
 
-### Clothing
+### Clothing — Future Capability
 
-Clothing-specific variant information can primarily use:
+Clothing may primarily use shared product/variant APIs:
 
 ```text
 /api/v1/products/:id/variants
 ```
 
-with clothing capability validation.
+with additional clothing-specific capability validation.
 
-### Supermarket
+### Supermarket / Grocery — Initial Capability
 
-Supermarket-specific workflows can primarily use shared:
+The initial implementation primarily uses:
 
 ```text
 products
 inventory
+purchases
 pos
 sales
+payments
+customers
 ```
 
-with barcode and bulk-unit capabilities enabled.
+with capabilities such as:
+
+```text
+barcode
+bulk units
+categories
+stock alerts
+expiry tracking where applicable
+```
 
 ---
 
-# 47. API Request Validation
+# 57. API Request Validation
 
 Every write endpoint must validate incoming data.
 
-Validation should happen before business logic.
-
-Example:
-
 ```text
 Request
- ↓
+   ↓
 Schema Validation
- ↓
+   ↓
+Business Validation
+   ↓
 Service
 ```
 
 Validation should cover:
 
-```text
-Required fields
-Data types
-String length
-Enum values
-Numeric ranges
-Identifiers
-Dates
-Arrays
-Nested objects
-```
+* Required fields
+* Data types
+* String length
+* Enum values
+* Numeric ranges
+* Identifiers
+* Dates
+* Arrays
+* Nested objects
 
-Validation must happen server-side even if the frontend already validates the same input.
+Zod or the project's selected validation layer should be used consistently.
+
+Frontend validation does not replace server-side validation.
 
 ---
 
-# 48. Business Validation
+# 58. Business Validation
 
-Schema validation is not enough.
+Schema validation alone is insufficient.
 
 Example:
 
@@ -1370,25 +2006,29 @@ quantity = 5
 
 may be structurally valid.
 
-But the business rule may be:
+But:
 
 ```text
 available stock = 2
 ```
 
+makes the requested sale invalid.
+
 Therefore:
 
 ```text
 Input Validation
-      +
+       +
 Business Validation
+       ↓
+Valid Operation
 ```
 
-are both required.
+Business validation belongs in the appropriate service/domain layer.
 
 ---
 
-# 49. Response Format
+# 59. Response Format
 
 Successful responses should follow a consistent structure.
 
@@ -1419,11 +2059,23 @@ List response:
 }
 ```
 
-The exact response envelope should remain consistent throughout the API.
+For asynchronous operations:
+
+```json
+{
+  "success": true,
+  "data": {
+    "jobId": "job_id",
+    "status": "QUEUED"
+  }
+}
+```
+
+The response contract should remain consistent across modules.
 
 ---
 
-# 50. Error Response Format
+# 60. Error Response Format
 
 Errors should use a consistent structure.
 
@@ -1456,11 +2108,13 @@ Validation error:
 }
 ```
 
+The response must not expose stack traces or sensitive internal implementation details in production.
+
 ---
 
-# 51. Error Codes
+# 61. Error Codes
 
-Application error codes should be stable and machine-readable.
+Application error codes must be stable and machine-readable.
 
 Examples:
 
@@ -1471,6 +2125,8 @@ AUTH_FORBIDDEN
 
 TENANT_NOT_FOUND
 TENANT_ACCESS_DENIED
+STORE_NOT_FOUND
+STORE_ACCESS_DENIED
 
 PRODUCT_NOT_FOUND
 PRODUCT_SKU_EXISTS
@@ -1483,18 +2139,23 @@ SALE_ALREADY_COMPLETED
 
 PAYMENT_FAILED
 PAYMENT_ALREADY_PROCESSED
+PAYMENT_RECONCILIATION_REQUIRED
+
+RETURN_NOT_FOUND
+RETURN_QUANTITY_EXCEEDED
 
 VALIDATION_ERROR
 RESOURCE_NOT_FOUND
 CONFLICT
+RATE_LIMITED
 INTERNAL_ERROR
 ```
 
-The frontend should rely on error codes rather than parsing human-readable messages.
+Frontend clients should rely on error codes rather than parsing human-readable messages.
 
 ---
 
-# 52. HTTP Status Codes
+# 62. HTTP Status Codes
 
 Recommended conventions:
 
@@ -1517,11 +2178,11 @@ Recommended conventions:
 503 Service Unavailable
 ```
 
-The exact usage should remain consistent.
+The exact status should reflect the actual failure semantics.
 
 ---
 
-# 53. Pagination
+# 63. Pagination
 
 Collection endpoints should support pagination.
 
@@ -1548,25 +2209,29 @@ Response:
 
 For very large datasets, cursor-based pagination may be introduced.
 
+Maximum page sizes should be enforced server-side.
+
 ---
 
-# 54. Filtering
+# 64. Filtering
 
 Examples:
 
 ```text
 GET /api/v1/products?status=ACTIVE
+
 GET /api/v1/sales?status=COMPLETED
+
 GET /api/v1/inventory?lowStock=true
 ```
 
-Filters must be validated and restricted to supported fields.
+Filters must be explicitly supported and validated.
 
-The API should never dynamically accept arbitrary database column names from clients.
+The API must never accept arbitrary database column names from clients.
 
 ---
 
-# 55. Sorting
+# 65. Sorting
 
 Example:
 
@@ -1574,13 +2239,13 @@ Example:
 GET /api/v1/products?sortBy=createdAt&sortOrder=desc
 ```
 
-Supported sort fields should be explicitly whitelisted.
+Supported sort fields must be explicitly whitelisted.
 
-This prevents unsafe dynamic query construction.
+This prevents unsafe dynamic query construction and accidental expensive database queries.
 
 ---
 
-# 56. Date Filtering
+# 66. Date Filtering
 
 Example:
 
@@ -1591,17 +2256,19 @@ GET /api/v1/sales?from=2026-09-01&to=2026-09-30
 The backend must validate:
 
 ```text
-date format
-timezone interpretation
+Date format
+Timezone interpretation
 from <= to
-maximum allowed date range
+Maximum allowed range where appropriate
 ```
 
-where appropriate.
+The API should use a consistent timezone policy.
+
+Business reporting timezone should be derived from tenant/business configuration where required.
 
 ---
 
-# 57. API Security
+# 67. API Security
 
 The API must implement:
 
@@ -1609,6 +2276,7 @@ The API must implement:
 Authentication
 Authorization
 Tenant isolation
+Store isolation
 Input validation
 Rate limiting
 Secure headers
@@ -1619,41 +2287,44 @@ Sensitive data protection
 Audit logging
 ```
 
-Prisma parameterization helps prevent SQL injection, but unsafe raw queries must still be handled carefully.
+Prisma parameterization provides strong protection against ordinary SQL injection.
+
+Raw SQL must still be reviewed and parameterized safely.
 
 ---
 
-# 58. Rate Limiting
+# 68. Rate Limiting
 
 Redis may be used for distributed rate limiting.
 
-Different endpoints may have different limits.
+Different endpoint categories may have different limits.
 
 Examples:
 
 ```text
 Login
-Password reset
-AI endpoints
-Search
+Password Reset
+AI Endpoints
 Public APIs
+Search
+Webhooks
 ```
 
-AI endpoints may have stricter limits because of provider cost.
+AI endpoints may require stricter limits because of provider costs.
 
-Rate limiting should return:
+When a limit is exceeded:
 
 ```text
 429 Too Many Requests
 ```
 
-when limits are exceeded.
+Rate limits should account for authenticated tenant/user context where appropriate.
 
 ---
 
-# 59. CORS
+# 69. CORS
 
-The production API should only allow approved application origins.
+Production APIs should allow only approved origins.
 
 Development:
 
@@ -1661,7 +2332,7 @@ Development:
 http://localhost:3000
 ```
 
-Production:
+Production examples:
 
 ```text
 https://buzzsynx.com
@@ -1670,13 +2341,13 @@ https://app.buzzsynx.com
 
 Exact domains will be finalized during deployment.
 
-Wildcard CORS should not be used for authenticated production APIs unless there is a documented reason.
+Wildcard CORS should not be used for authenticated production APIs without a documented reason.
 
 ---
 
-# 60. API Logging
+# 70. API Logging
 
-Logs should contain useful operational information:
+Operational logs should contain useful information such as:
 
 ```text
 requestId
@@ -1686,22 +2357,26 @@ status
 duration
 userId where appropriate
 tenantId where appropriate
+storeId where appropriate
 errorCode
 ```
 
 Do not log:
 
 ```text
-passwords
-tokens
-payment secrets
+Passwords
+Authentication tokens
+Payment secrets
 API keys
-sensitive personal information
+Sensitive personal information
+Full payment credentials
 ```
+
+Logging must follow the application's data protection requirements.
 
 ---
 
-# 61. Audit Logging
+# 71. Audit Logging
 
 Business-critical operations should generate audit records.
 
@@ -1716,45 +2391,73 @@ Sale Completed
 Sale Refunded
 Payment Processed
 Role Changed
+Membership Changed
 Settings Changed
+Tenant Suspended
 ```
 
-Audit logging should happen inside or immediately around the appropriate business transaction depending on the event.
+Audit records should capture appropriate context, such as:
+
+```text
+tenantId
+storeId
+userId
+action
+entity
+entityId
+timestamp
+requestId
+reason where applicable
+```
+
+For critical business operations, audit creation should occur inside the same transaction or through an equivalent reliable mechanism.
+
+Audit logs are different from technical application logs.
 
 ---
 
-# 62. Database Transactions in APIs
+# 72. Database Transactions in APIs
 
-Controllers should not independently manipulate multiple business entities.
+Controllers must not independently manipulate multiple business entities.
 
-Example:
-
-```text
-SaleController
-```
-
-should call:
+Avoid:
 
 ```text
-SaleService.createSale()
-```
-
-The service coordinates:
-
-```text
+Controller
+   ↓
 Sale
-SaleItem
-Payment
+   ↓
 Inventory
+   ↓
+Payment
+   ↓
 Invoice
-Audit
 ```
 
-inside the appropriate transaction boundary.
+inside the controller.
+
+Prefer:
+
+```text
+Controller
+    ↓
+SaleService
+    ↓
+Transaction
+    ├── Sale
+    ├── SaleItems
+    ├── Payments
+    ├── Inventory Movements
+    ├── Inventory Balance
+    ├── Invoice
+    └── Audit
+```
+
+The service owns the business transaction boundary.
 
 ---
 
-# 63. Service Layer
+# 73. Service Layer
 
 Business logic belongs in services.
 
@@ -1766,81 +2469,84 @@ async function createSale(context, input) {
 }
 ```
 
-The service should receive trusted context:
+The service receives trusted context such as:
 
 ```text
 userId
 tenantId
-role
+membershipId
+permissions
+activeStoreId
 capabilities
 ```
 
-rather than relying on arbitrary request-body values.
+The service must not trust arbitrary tenant or authorization values supplied in the request body.
 
 ---
 
-# 64. Controller Layer
+# 74. Controller Layer
 
 Controllers should remain thin.
 
-Controller responsibilities:
+Responsibilities:
 
 ```text
-Read request
- ↓
-Pass validated input
- ↓
-Call service
- ↓
-Format response
+Read Request
+      ↓
+Pass Validated Input
+      ↓
+Call Service
+      ↓
+Format Response
 ```
-
-Controllers should not contain large business workflows.
 
 Avoid:
 
 ```javascript
-// 300 lines of sale logic inside controller
+// hundreds of lines of sale logic inside controller
 ```
 
 Prefer:
 
 ```text
 Controller
-   ↓
+    ↓
 SaleService
-   ↓
-InventoryService
-PaymentService
-InvoiceService
+    ↓
+Domain / Application Logic
+    ↓
+Repositories
 ```
 
 ---
 
-# 65. Repository Layer
+# 75. Repository Layer
 
-Repositories/data-access functions should encapsulate Prisma queries where useful.
+Repositories/data-access functions encapsulate database access where useful.
 
-Example:
+Examples:
 
 ```text
 ProductRepository
 SaleRepository
 InventoryRepository
 CustomerRepository
+PurchaseRepository
 ```
 
 Repositories should not decide whether a user is allowed to perform an operation.
 
 Authorization belongs at the application/service boundary.
 
+Repositories should still enforce required tenant/store query constraints passed by trusted application context.
+
 ---
 
-# 66. API and Background Jobs
+# 76. API and Background Jobs
 
-Not every operation should remain synchronous.
+Long-running or non-critical operations should not block synchronous API requests unnecessarily.
 
-Use BullMQ for long-running operations such as:
+Use BullMQ for operations such as:
 
 ```text
 AI analysis
@@ -1851,6 +2557,7 @@ Data aggregation
 Scheduled tasks
 Bulk imports
 Export generation
+Invoice PDF generation
 ```
 
 Example:
@@ -1871,47 +2578,82 @@ Generate Report
 Store Result
 ```
 
+Background jobs must support appropriate:
+
+* Retries
+* Idempotency
+* Failure handling
+* Logging
+* Monitoring
+
 ---
 
-# 67. API Timeout Strategy
+# 77. Post-Commit Processing
 
-API endpoints should not wait indefinitely for external services.
+Business transactions must commit before non-critical background work is dispatched where practical.
+
+Preferred:
+
+```text
+BEGIN TRANSACTION
+      ↓
+Business Changes
+      ↓
+COMMIT
+      ↓
+Reliable Event / Job Dispatch
+      ↓
+BullMQ Worker
+```
+
+For critical event delivery requirements, a transactional outbox or equivalent reliable post-commit mechanism may be introduced.
+
+The API must avoid creating a situation where a transaction succeeds but required background processing is silently lost.
+
+---
+
+# 78. API Timeout Strategy
+
+API endpoints must not wait indefinitely for external services.
 
 Especially:
 
 ```text
-AI providers
-Payment providers
-Email providers
-Storage providers
+AI Providers
+Payment Providers
+Email Providers
+Storage Providers
 External APIs
 ```
 
 Use:
 
 ```text
-Timeout
-Retry where safe
-Circuit-breaker strategy where justified
-Fallback
+Timeouts
+Retries where safe
+Fallbacks where appropriate
 Async processing
+Circuit-breaking where justified
 ```
 
-Do not blindly retry financial transactions.
+Do not blindly retry financial operations.
+
+Retries must respect idempotency.
 
 ---
 
-# 68. Webhooks
+# 79. Webhooks
 
 External webhook endpoints must:
 
-1. Verify authenticity.
-2. Validate payload.
-3. Check event type.
-4. Check idempotency.
-5. Process safely.
-6. Record the event.
-7. Return an appropriate response.
+1. Verify authenticity/signature.
+2. Validate payload structure.
+3. Validate event type.
+4. Resolve the related business context.
+5. Check idempotency.
+6. Process safely.
+7. Record the event/result.
+8. Return an appropriate response.
 
 Example:
 
@@ -1922,22 +2664,26 @@ Webhook
       ↓
 Verify Signature
       ↓
+Validate Payload
+      ↓
 Check Idempotency
       ↓
-Process Payment
+Process Payment State
       ↓
 Update Database
 ```
 
-Webhook processing should be designed for duplicate delivery.
+Webhook handlers must support duplicate delivery.
+
+Webhook endpoints must not trust arbitrary tenant IDs supplied in webhook payloads without resolving them from trusted provider/business identifiers.
 
 ---
 
-# 69. API Documentation
+# 80. API Documentation
 
-Buzzsynx should eventually expose OpenAPI documentation.
+Buzzsynx should maintain OpenAPI documentation.
 
-Example:
+Potential endpoint:
 
 ```text
 /api/docs
@@ -1950,6 +2696,9 @@ Endpoint
 Method
 Authentication
 Permissions
+Tenant Scope
+Store Scope
+Capability Requirements
 Parameters
 Request Body
 Response
@@ -1957,13 +2706,19 @@ Errors
 Examples
 ```
 
-OpenAPI can later be used to support frontend/mobile integration and automated testing.
+OpenAPI can later support:
+
+* Frontend integration
+* Mobile integration
+* Third-party integrations
+* Contract testing
+* API testing
 
 ---
 
-# 70. API Testing
+# 81. API Testing
 
-API tests should cover:
+API tests should cover critical business behavior.
 
 ### Authentication
 
@@ -1975,11 +2730,18 @@ Invalid credentials
 Session expiry
 ```
 
-### Tenant isolation
+### Tenant Isolation
 
 ```text
 Tenant A → Tenant A data
-Tenant A → cannot access Tenant B data
+Tenant A → Cannot access Tenant B data
+```
+
+### Store Isolation
+
+```text
+Store A User → Store A data
+Store A User → Cannot access Store B data without permission
 ```
 
 ### RBAC
@@ -2012,12 +2774,12 @@ Return
 ### POS
 
 ```text
-Create sale
-Stock validation
+Create Sale
+Stock Validation
 Payment
 Invoice
 Rollback
-Duplicate request
+Duplicate Request
 ```
 
 ### Payments
@@ -2028,79 +2790,93 @@ Failure
 Duplicate
 Refund
 Webhook
+Reconciliation
 ```
 
 ### AI
 
 ```text
-Queue job
-Worker processing
-Insight creation
-Failure handling
+Queue Job
+Worker Processing
+Insight Creation
+Failure Handling
+Tenant Isolation
 ```
+
+Critical financial and inventory workflows require stronger integration testing than ordinary CRUD endpoints.
 
 ---
 
-# 71. API Performance
+# 82. API Performance
 
 Performance should be measured rather than assumed.
 
-Important metrics:
+Important metrics include:
 
 ```text
-Average latency
-P95 latency
-P99 latency
-Requests per second
-Error rate
-Database query duration
-Redis latency
-External provider latency
-Queue processing time
+Average Latency
+P95 Latency
+P99 Latency
+Requests Per Second
+Error Rate
+Database Query Duration
+Redis Latency
+External Provider Latency
+Queue Processing Time
 ```
 
 Optimization sequence:
 
 ```text
 Correctness
- ↓
+    ↓
 Measure
- ↓
-Optimize database queries
- ↓
-Add indexes
- ↓
-Cache
- ↓
-Background processing
- ↓
-Scale infrastructure
+    ↓
+Optimize Database Queries
+    ↓
+Add Indexes
+    ↓
+Cache Safe Reads
+    ↓
+Background Processing
+    ↓
+Scale Infrastructure
 ```
+
+Do not introduce infrastructure complexity before identifying an actual bottleneck.
 
 ---
 
-# 72. API Caching
+# 83. API Caching
 
-Safe read-heavy endpoints may use Redis caching.
+Redis may be used for safe read-heavy operations.
 
 Examples:
 
 ```text
-Product lookup
-Business settings
-Dashboard summaries
-Static configuration
+Product Lookup
+Business Settings
+Static Configuration
+Dashboard Summaries
 ```
 
-Avoid caching highly volatile transactional state without a clear invalidation strategy.
+Caching must have a clear invalidation or freshness strategy.
 
-For example, POS stock availability requires careful consistency.
+Avoid caching highly volatile transactional state without understanding consistency implications.
 
-PostgreSQL remains authoritative.
+For example:
+
+```text
+POS Stock Availability
+```
+
+must use authoritative transactional data when finalizing a sale.
+
+PostgreSQL remains the source of truth.
 
 ---
 
-# 73. API Compatibility
+# 84. API Compatibility
 
 API contracts should be treated as public interfaces.
 
@@ -2108,22 +2884,29 @@ Changes should avoid unexpectedly breaking:
 
 ```text
 Frontend
-Mobile clients
-Third-party integrations
+Mobile Clients
+Third-Party Integrations
 Webhooks
 Automations
 ```
 
-Breaking changes require versioning or a controlled migration strategy.
+Breaking changes require:
+
+```text
+Versioning
+```
+
+or a controlled migration/deprecation strategy.
 
 ---
 
-# 74. API Folder Structure
+# 85. API Folder Structure
 
 Recommended backend structure:
 
 ```text
 src/server/
+
 ├── index.js
 │
 ├── modules/
@@ -2134,13 +2917,10 @@ src/server/
 │   │   ├── auth.repository.js
 │   │   └── auth.validation.js
 │   │
+│   ├── tenants/
+│   ├── users/
+│   ├── roles/
 │   ├── products/
-│   │   ├── product.routes.js
-│   │   ├── product.controller.js
-│   │   ├── product.service.js
-│   │   ├── product.repository.js
-│   │   └── product.validation.js
-│   │
 │   ├── inventory/
 │   ├── pos/
 │   ├── sales/
@@ -2157,6 +2937,8 @@ src/server/
 │   ├── auth.js
 │   ├── tenant.js
 │   ├── permissions.js
+│   ├── capability.js
+│   ├── store-scope.js
 │   ├── validation.js
 │   ├── rate-limit.js
 │   ├── error-handler.js
@@ -2168,34 +2950,37 @@ src/server/
 
 ---
 
-# 75. API Development Order
+# 86. API Development Order
 
-The backend API should be implemented in this order.
+The API should be implemented according to the product execution roadmap.
 
-## Phase 1 — Platform
+## Phase 1 — Platform Foundation
 
 ```text
 Health
 Authentication
-Tenant resolution
+Tenant Creation
+Tenant Resolution
+Stores
+Memberships
 Users
 Roles
 Permissions
 ```
 
-## Phase 2 — Product
+## Phase 2 — Product Foundation
 
 ```text
 Categories
 Brands
 Products
 Variants
+Product Search
 ```
 
 ## Phase 3 — Inventory
 
 ```text
-Locations
 Stock
 Movements
 Adjustments
@@ -2210,10 +2995,11 @@ Purchases
 Receiving
 ```
 
-## Phase 5 — POS
+## Phase 5 — POS and Sales
 
 ```text
 Customers
+POS Search
 Sales
 Payments
 Invoices
@@ -2224,15 +3010,17 @@ Invoices
 ```text
 Returns
 Refunds
+Inventory Return Disposition
 ```
 
-## Phase 7 — Industry Capabilities
+## Phase 7 — Supermarket Capability
 
 ```text
-Pharmacy
-Supermarket
-Clothing
-Restaurant
+Barcode
+Bulk Units
+Retail Pricing
+Stock Alerts
+Relevant Expiry Tracking
 ```
 
 ## Phase 8 — Intelligence
@@ -2240,94 +3028,131 @@ Restaurant
 ```text
 Analytics
 Reports
-AI
+AI Insights
+AI Recommendations
 Notifications
 ```
 
-## Phase 9 — Production Hardening
+## Phase 9 — Future Industry Capabilities
 
 ```text
-Rate limiting
+Pharmacy
+Clothing
+Restaurant
+Other Validated Industry Extensions
+```
+
+## Phase 10 — Production Hardening
+
+```text
+Rate Limiting
 Caching
 Observability
-Security
+Security Hardening
 Performance
-API documentation
+OpenAPI Documentation
+Load Testing
+Deployment Hardening
 ```
+
+The existence of an API section does not mean that the corresponding feature is already implemented.
 
 ---
 
-# 76. API Definition of Done
+# 87. API Definition of Done
 
-An API module is considered complete when:
+An API module is considered implementation-complete when applicable:
 
 * [ ] Route is defined.
 * [ ] Authentication requirement is defined.
 * [ ] Tenant scope is defined.
+* [ ] Store scope is defined where applicable.
 * [ ] Permission is defined.
 * [ ] Capability requirement is defined where applicable.
 * [ ] Request schema is validated.
 * [ ] Business validation is implemented.
 * [ ] Controller is implemented.
 * [ ] Service is implemented.
-* [ ] Repository/data access is implemented.
+* [ ] Repository/data access is implemented where appropriate.
 * [ ] Transaction boundary is defined where required.
 * [ ] Error codes are defined.
 * [ ] Response format is consistent.
 * [ ] Audit logging is implemented where required.
 * [ ] Idempotency is implemented where required.
-* [ ] Tests are implemented.
+* [ ] Background processing is implemented where required.
+* [ ] Tests are implemented according to criticality.
 * [ ] API documentation is updated.
+* [ ] Observability requirements are satisfied.
 
 ---
 
-# 77. API Design Principles
+# 88. API Design Principles
 
-The following principles are mandatory:
+The following principles are mandatory.
 
 ### 1. Server is authoritative
 
-Never trust client-calculated financial or inventory values.
+Never trust client-calculated financial, inventory, tax, discount, or settlement values.
 
 ### 2. Tenant isolation is non-negotiable
 
-Every tenant request must execute inside a verified tenant context.
+Every tenant operation must execute inside a verified tenant context.
 
-### 3. Authentication and authorization are separate
+### 3. Store scope is explicit
+
+Users must only access stores/branches permitted by their membership and permissions.
+
+### 4. Authentication and authorization are separate
 
 Knowing who the user is does not determine what they can do.
 
-### 4. Controllers stay thin
+### 5. Controllers stay thin
 
 Business logic belongs in services.
 
-### 5. Critical operations are transactional
+### 6. Critical operations are transactional
 
-Sales, payments, inventory, receiving, and refunds require careful transaction boundaries.
+Sales, inventory movements, receiving, refunds, and other critical financial operations require carefully defined transaction boundaries.
 
-### 6. APIs are idempotent where necessary
+### 7. APIs are idempotent where necessary
 
-Financial and inventory operations must handle retries safely.
+Financial, inventory, and webhook operations must handle retries safely.
 
-### 7. Errors are structured
+### 8. Errors are structured
 
-Clients should receive stable error codes.
+Clients should receive stable machine-readable error codes.
 
-### 8. Redis is an optimization layer
+### 9. PostgreSQL is authoritative
 
-It does not replace PostgreSQL.
+Redis is an optimization/supporting layer, not the transactional source of truth.
 
-### 9. AI remains inside controlled workflows
+### 10. Background work is asynchronous
 
-AI cannot bypass normal business rules.
+Non-critical or long-running work should not unnecessarily block critical business transactions.
 
-### 10. API contracts are documented
+### 11. AI remains inside controlled workflows
 
-Every production API should have a clear contract.
+AI provides intelligence and recommendations but cannot bypass normal business rules.
+
+### 12. Capabilities are backend-enforced
+
+Industry capabilities must be enforced by the API, not only hidden or shown by the frontend.
+
+### 13. Auditability matters
+
+Critical business operations must be traceable.
+
+### 14. API contracts are documented
+
+Production APIs must have clear and maintainable contracts.
+
+### 15. Avoid premature complexity
+
+Do not introduce microservices, dedicated search infrastructure, or other distributed-system complexity until actual product requirements justify them.
 
 ---
 
-# 78. Final API Architecture
+# 89. Final API Architecture
 
 ```text
                          CLIENT
@@ -2337,16 +3162,20 @@ Every production API should have a clear contract.
                            ▼
                     REST API /v1
                            │
-                    ┌──────┴──────┐
-                    │ Middleware  │
-                    │             │
-                    │ Request ID  │
-                    │ Auth        │
-                    │ Tenant      │
-                    │ RBAC        │
-                    │ Validation  │
-                    │ Rate Limit  │
-                    └──────┬──────┘
+                           ▼
+                  ┌─────────────────┐
+                  │   Middleware    │
+                  │                 │
+                  │ Request ID      │
+                  │ Authentication  │
+                  │ Tenant Context  │
+                  │ Membership      │
+                  │ Store Scope     │
+                  │ RBAC            │
+                  │ Capability      │
+                  │ Validation      │
+                  │ Rate Limit      │
+                  └────────┬────────┘
                            │
                            ▼
                      Controllers
@@ -2354,22 +3183,168 @@ Every production API should have a clear contract.
                            ▼
                        Services
                            │
-             ┌─────────────┼─────────────┐
-             │             │             │
-        PostgreSQL       Redis        BullMQ
-             │                           │
-             │                         Workers
-             │                           │
-             │                    ┌──────┼──────┐
-             │                    │      │      │
-             │                   AI   Reports Notifications
-             │
-             ▼
+              ┌────────────┼────────────┐
+              │            │            │
+              ▼            ▼            ▼
+         PostgreSQL      Redis       BullMQ
+              │                         │
+              │                      Workers
+              │                         │
+              │              ┌──────────┼──────────┐
+              │              │          │          │
+              │             AI       Reports   Notifications
+              │
+              ▼
         Business Data
 ```
 
-The API architecture therefore follows:
+External services:
 
-> **Request → Authenticate → Resolve Tenant → Authorize → Validate → Execute Business Service → Persist Transaction → Respond**
+```text
+                    Services
+                       │
+        ┌──────────────┼───────────────┐
+        │              │               │
+        ▼              ▼               ▼
+ Payment Providers   AI Providers   Storage
+        │
+        ▼
+    Webhooks
+        │
+        ▼
+ Verification
+        │
+        ▼
+ Application Service
+```
 
 ---
+
+# 90. Final API Request Principle
+
+The Buzzsynx API follows:
+
+```text
+Request
+   ↓
+Authenticate
+   ↓
+Resolve Tenant
+   ↓
+Resolve Membership
+   ↓
+Resolve Store Scope
+   ↓
+Authorize
+   ↓
+Check Capability
+   ↓
+Validate Input
+   ↓
+Execute Business Service
+   ↓
+Validate Business Rules
+   ↓
+Persist Transaction
+   ↓
+Commit
+   ↓
+Dispatch Non-Critical Background Work
+   ↓
+Respond
+```
+
+For critical business operations:
+
+```text
+Client
+  ↓
+API
+  ↓
+Application Service
+  ↓
+PostgreSQL Transaction
+  ↓
+Commit
+  ↓
+Async Processing
+```
+
+The core principle is:
+
+> **The API enforces who can perform an operation, the service enforces how the business operation works, PostgreSQL records what actually happened, and background systems handle non-critical work after the transaction.**
+
+---
+
+# 91. Related Documentation
+
+This document should remain aligned with:
+
+```text
+00-project-overview.md
+01-system-architecture.md
+02-system-workflow.md
+03-database-design.md
+05-multi-tenancy.md
+06-industry-capabilities.md
+07-security.md
+08-ai-architecture.md
+09-caching-and-queues.md
+10-testing-strategy.md
+11-devops.md
+12-aws-infrastructure.md
+13-observability.md
+14-development-standards.md
+15-phase-wise-execution.md
+16-feature-checklist.md
+17-production-readiness.md
+18-project-completion.md
+```
+
+If a conflict exists between API behavior and the architecture/database/security documents, the documents must be reconciled before implementation.
+
+---
+
+# 92. API Scope Statement
+
+The API design intentionally provides a **complete architectural direction without requiring every endpoint to be implemented immediately**.
+
+The initial implementation priority is:
+
+```text
+Multi-Tenancy
+      ↓
+Authentication
+      ↓
+RBAC + Store Scope
+      ↓
+Products
+      ↓
+Inventory
+      ↓
+Purchasing
+      ↓
+POS
+      ↓
+Sales
+      ↓
+Payments
+      ↓
+Invoices
+      ↓
+Analytics
+      ↓
+AI
+```
+
+The first complete business workflow is:
+
+```text
+Supermarket / Grocery
+```
+
+Other industry APIs remain extensibility points until their corresponding capabilities are validated and implemented.
+
+**Buzzsynx API principle:**
+
+> **One modular API. One business engine. Strong tenant isolation. Transaction-safe operations. Industry capabilities where needed. AI as intelligence, not authority.**
