@@ -1,115 +1,217 @@
 # Buzzsynx — Phase-Wise Execution Plan
 
-## 1. Purpose
+**Version:** v0.2
+**Status:** Architecture-Aligned Execution Baseline
+**Product:** Buzzsynx
+**Architecture:** Multi-Tenant Modular Monolith
+**Initial Industry:** Supermarket / Grocery Retail
 
-This document defines the phased execution strategy for building **Buzzsynx**, from the initial foundation through a production-ready SaaS platform.
+---
 
-Buzzsynx is designed as a:
+# 1. Purpose
 
-* Multi-tenant business operations platform
-* Retail/POS and inventory system
-* Industry-configurable SaaS
-* AI-powered business intelligence platform
-* Modular monolith
-* Cloud-ready application
+This document defines the phased execution strategy for building **Buzzsynx** from its engineering foundation into a production-ready SaaS platform.
 
-The project should be developed incrementally.
+Buzzsynx is designed as:
 
-> **Build the business engine first. Add intelligence and infrastructure progressively.**
+* A multi-tenant business operations platform
+* An inventory and POS platform
+* An industry-capable SaaS
+* An AI-powered business intelligence platform
+* A modular monolith
+* A cloud-ready application
+
+The implementation should be incremental and vertical-slice driven.
+
+> **Build the business engine first. Validate the transaction engine next. Add intelligence and infrastructure progressively.**
+
+The **supermarket/grocery workflow is the first complete implementation target**.
+
+Pharmacy, clothing, restaurant, clinic, electronics and other industries are future capabilities built on top of the shared business engine.
 
 ---
 
 # 2. Execution Philosophy
 
-Buzzsynx should not be developed by building every feature simultaneously.
+Buzzsynx should not attempt to implement every industry and feature simultaneously.
 
-The execution model is:
+The preferred progression is:
 
 ```text
 Foundation
     ↓
-Core Business Engine
+Authentication & Multi-Tenancy
+    ↓
+Product & Catalog
     ↓
 Inventory
     ↓
 Purchasing
     ↓
-POS
+POS & Sales
     ↓
 Customers & Payments
     ↓
-Industry Capabilities
+Supermarket Vertical Slice
     ↓
-Analytics
+Analytics & Reports
     ↓
-AI
+Automation
     ↓
-DevOps
+AI Intelligence
     ↓
-Production Hardening
+Security & Production Hardening
+    ↓
+DevOps & Deployment
+    ↓
+Observability
+    ↓
+SaaS Commercialization
 ```
 
-Each phase should produce a usable and testable result before the next major phase begins.
+Each major phase should produce something that can be:
+
+* Run
+* Tested
+* Reviewed
+* Demonstrated
+* Verified against the architecture
+
+Do not continue adding features while a critical lower layer remains unstable.
 
 ---
 
-# 3. Phase Overview
+# 3. Architecture Baseline
 
-| Phase | Focus                      | Primary Outcome                          |
-| ----- | -------------------------- | ---------------------------------------- |
-| 0     | Project Foundation         | Development environment                  |
-| 1     | Application Foundation     | App architecture + authentication        |
-| 2     | Multi-Tenancy              | Tenant isolation                         |
-| 3     | Product Management         | Product/business catalog                 |
-| 4     | Inventory Engine           | Stock ledger                             |
-| 5     | Purchasing                 | Supplier + purchase workflow             |
-| 6     | POS & Sales                | Complete checkout flow                   |
-| 7     | Customers & Payments       | Customer/payment ecosystem               |
-| 8     | Industry Capabilities      | Pharmacy/supermarket/clothing/restaurant |
-| 9     | Analytics & Reporting      | Business intelligence                    |
-| 10    | AI Intelligence            | AI-powered operations                    |
-| 11    | Notifications & Automation | Background automation                    |
-| 12    | Security & Hardening       | Production security                      |
-| 13    | DevOps & Deployment        | Deployable platform                      |
-| 14    | Observability              | Monitoring + operational visibility      |
-| 15    | SaaS Readiness             | Subscription/platform capabilities       |
-| 16    | Production Readiness       | Final validation                         |
-| 17    | Portfolio/Product Release  | Demonstrable product                     |
+The execution plan assumes the following architecture:
+
+```text
+Next.js / React
+       ↓
+Express API
+       ↓
+Application / Domain Services
+       ↓
+Prisma
+       ↓
+PostgreSQL
+```
+
+Supporting infrastructure:
+
+```text
+Redis
+  ├── Cache
+  ├── Temporary data
+  ├── Rate limiting
+  └── Coordination
+
+BullMQ
+  └── Background jobs
+```
+
+For reliable asynchronous workflows where required:
+
+```text
+Business Transaction
+       ↓
+PostgreSQL Transaction
+       ↓
+Outbox Event
+       ↓
+Publisher
+       ↓
+BullMQ
+       ↓
+Worker
+```
+
+Core principles:
+
+* PostgreSQL is the business source of truth.
+* Redis is not authoritative business storage.
+* BullMQ handles asynchronous work.
+* AI does not control critical business state.
+* Tenant isolation is enforced server-side.
+* Store access is validated server-side.
+* Business rules remain deterministic.
+* Modules remain inside a modular monolith until extraction is justified.
 
 ---
 
-# 4. Phase 0 — Project Foundation
+# 4. Phase Overview
+
+| Phase | Focus                          | Primary Outcome                      |
+| ----- | ------------------------------ | ------------------------------------ |
+| 0     | Project Foundation             | Local development foundation         |
+| 1     | Application Foundation         | Stable frontend/backend architecture |
+| 2     | Authentication & Multi-Tenancy | Secure tenant-aware application      |
+| 3     | Product & Catalog              | Shared product engine                |
+| 4     | Inventory                      | Transactional stock engine           |
+| 5     | Suppliers & Purchasing         | Procurement workflow                 |
+| 6     | POS & Sales                    | Transaction engine                   |
+| 7     | Customers & Payments           | Customer/payment lifecycle           |
+| 8     | Supermarket Vertical Slice     | First complete industry workflow     |
+| 9     | Analytics & Reporting          | Operational intelligence             |
+| 10    | Automation & Notifications     | Background processing                |
+| 11    | AI Intelligence                | AI-powered business insights         |
+| 12    | Security & Hardening           | Production security baseline         |
+| 13    | DevOps & Deployment            | Repeatable deployment                |
+| 14    | Observability                  | Operational visibility               |
+| 15    | SaaS Readiness                 | Commercial platform foundation       |
+| 16    | Production Readiness           | System-wide validation               |
+| 17    | Future Industry Expansion      | Additional industry capabilities     |
+
+---
+
+# 5. Phase 0 — Project Foundation
 
 ## Objective
 
-Create a clean development foundation before implementing business logic.
+Create the development environment and repository foundation before implementing business logic.
 
-## Tasks
+## Project
 
-### Project
+Establish:
 
-* Next.js application
-* Express backend
+* Next.js
+* React
 * JavaScript/JSX
 * Tailwind CSS
 * shadcn/ui
 * ESLint
 * Git repository
+* Project documentation
 
-### Infrastructure
+## Backend
+
+Establish:
+
+* Node.js
+* Express
+* API structure
+* Environment configuration
+* Error handling foundation
+
+## Infrastructure
+
+Establish:
 
 * Docker
-* Docker Compose
+* Docker Compose where useful
 * PostgreSQL
 * Redis
 
-### Database
+## Database
 
-* Prisma installation
-* Database connection
-* Initial Prisma configuration
+Establish:
 
-### Configuration
+* Prisma
+* PostgreSQL connection
+* Prisma schema foundation
+* Migration workflow
+
+## Configuration
 
 Create:
 
@@ -118,19 +220,25 @@ Create:
 .env.example
 ```
 
-Define configuration for:
+Configuration categories:
 
 ```text
-DATABASE_URL
-REDIS_URL
+DATABASE
+REDIS
 AUTH
+APPLICATION
 AI
 PAYMENTS
+STORAGE
 ```
+
+Only configuration required by the current implementation should be activated.
+
+Do not create large numbers of unused environment variables.
 
 ## Outcome
 
-The application can run locally with:
+The project can run locally with:
 
 ```text
 Next.js
@@ -139,17 +247,19 @@ PostgreSQL
 Redis
 ```
 
+and the repository has a clean development baseline.
+
 ---
 
-# 5. Phase 1 — Application Foundation
+# 6. Phase 1 — Application Foundation
 
 ## Objective
 
-Establish the application's core architecture.
+Establish the architectural skeleton used by every future feature.
 
-## Build
+## Backend
 
-### Backend
+Create:
 
 ```text
 server/
@@ -159,18 +269,51 @@ server/
 └── queues/
 ```
 
-### Core infrastructure
+Establish:
 
 * Express application
+* API versioning
+* Request handling
 * Error handling
-* Request validation
+* Request IDs
+* Validation
 * Logging
-* API response conventions
-* Configuration management
-* Database client
-* Redis client
+* Configuration
+* Database access
+* Redis access
+* Health endpoint
 
-### Frontend
+## Application Flow
+
+The intended request flow is:
+
+```text
+Request
+   ↓
+Request ID
+   ↓
+Authentication
+   ↓
+Tenant / Store Context
+   ↓
+Authorization
+   ↓
+Validation
+   ↓
+Controller
+   ↓
+Service / Use Case
+   ↓
+Repository / Data Access
+   ↓
+Prisma
+   ↓
+PostgreSQL
+```
+
+## Frontend
+
+Establish:
 
 * Root layout
 * Marketing layout
@@ -180,92 +323,117 @@ server/
 * Loading states
 * Error boundaries
 * Not-found handling
+* Shared UI primitives
 
 ## Outcome
 
-Buzzsynx has a stable application skeleton ready for business modules.
+Buzzsynx has a stable application skeleton ready for domain development.
 
 ---
 
-# 6. Phase 2 — Authentication & Multi-Tenancy
+# 7. Phase 2 — Authentication & Multi-Tenancy
 
 ## Objective
 
-Implement the foundation that every business operation depends on.
+Build the identity and tenant foundation required by every business operation.
 
 ## Authentication
 
-Implement:
+Implement the selected authentication strategy with:
 
 * Registration
 * Login
 * Logout
 * Password hashing
 * Session/token management
-* Google OAuth
 * Password reset
 * Email verification where required
+* OAuth where required
 
-## Tenant System
+Security implementation must follow the authentication strategy documented in the security architecture.
 
-Implement:
+## Tenant Hierarchy
+
+The canonical hierarchy is:
 
 ```text
-User
-  ↓
-Membership
-  ↓
-Tenant
+Super Admin
+    ↓
+Tenant / Business
+    ↓
+Store / Branch
+    ↓
+Membership / User
 ```
 
-Each tenant represents an independent business.
+A user belongs to a tenant through a membership.
 
-Example:
+A membership can have access to one or multiple stores.
 
-```text
-Tenant A → Pharmacy
-Tenant B → Supermarket
-Tenant C → Clothing Store
-Tenant D → Restaurant
-```
-
-## RBAC
-
-Initial roles:
+## Current Roles
 
 ```text
+SUPER_ADMIN
 OWNER
-ADMIN
-EDITOR
-STAFF
-MEMBER
+ADMIN_MANAGER
+CASHIER
+ACCOUNTANT
+STORE_STAFF
 ```
 
-The final role structure can evolve based on actual business requirements.
+Roles belong to the tenant membership, not directly to the global user identity.
 
-## Security
+## Authorization
 
 Implement:
 
+* Authentication
 * Tenant resolution
-* Tenant-scoped queries
-* RBAC middleware
+* Store context resolution
+* RBAC
+* Permission checks
 * Capability checks
-* IDOR protection
+* Resource ownership checks
+* Tenant isolation
+* Store access validation
+
+Critical rule:
+
+```text
+tenantId
+    ↓
+Derived from trusted server-side context
+```
+
+Never trust a client-provided tenant ID for authorization.
+
+For store operations:
+
+```text
+client storeId
+      ↓
+validate against
+      ↓
+current tenant
+      ↓
+membership store access
+```
 
 ## Outcome
 
-Multiple businesses can safely use the same application.
+Multiple businesses can safely operate inside the same application.
 
 ---
 
-# 7. Phase 3 — Product Management
+# 8. Phase 3 — Product & Catalog
 
 ## Objective
 
-Build the shared product/catalog engine.
+Build the shared product and catalog engine.
 
-## Core entities
+## Core Entities
+
+Potential shared entities:
 
 ```text
 Product
@@ -277,62 +445,48 @@ Barcode
 ProductVariant
 ```
 
-Not every industry will require every entity.
+Only entities required by the current implementation should be introduced.
 
-## Product capabilities
+## Product Features
 
 Implement:
 
-* Create product
-* Update product
-* Delete/archive product
+* Product creation
+* Product editing
+* Product archive/deactivation
 * Product search
 * SKU
 * Barcode
-* Categories
-* Brands
+* Category
+* Brand
 * Pricing
 * Tax configuration
 * Product status
-* Product images
+* Product images where required
 
-## Tenant Isolation
+## Scope
 
-Every tenant-owned product must be scoped by:
+Product master data is generally tenant-owned.
 
-```text
-tenantId
-```
-
-Example:
-
-```text
-Tenant A
- ├── Product A
- └── Product B
-
-Tenant B
- ├── Product A
- └── Product C
-```
-
-These records remain completely independent.
+Store-specific information such as availability, pricing overrides or stock should be modeled at store scope when required.
 
 ## Outcome
 
-Buzzsynx has a reusable product engine for multiple industries.
+Buzzsynx has a reusable product engine that supports the supermarket workflow.
 
 ---
 
-# 8. Phase 4 — Inventory Engine
+# 9. Phase 4 — Inventory Engine
 
 ## Objective
 
-Build the core stock-management system.
+Build the authoritative stock-management system.
 
-Inventory should use a **stock movement ledger** rather than treating quantity as the only source of truth.
+Inventory must use a **stock movement ledger plus current balance**, rather than treating a quantity field alone as historical truth.
 
 ## Movement Types
+
+Canonical movement types:
 
 ```text
 PURCHASE
@@ -344,57 +498,80 @@ EXPIRY
 ADJUSTMENT
 ```
 
-## Core entities
-
-```text
-Inventory
-StockMovement
-Warehouse
-Location
-```
-
-## Workflow
+## Core Concepts
 
 ```text
 Business Event
       ↓
 Stock Movement
       ↓
-Inventory Update
+Inventory Balance
       ↓
-Audit Record
+Audit Trail
 ```
 
-## Important rules
+## Rules
 
-* PostgreSQL remains the source of truth.
-* Redis must not become the authoritative stock database.
-* Stock changes must be transactional.
-* Negative stock rules must be configurable.
-* Every important stock adjustment should be auditable.
+* PostgreSQL remains authoritative.
+* Stock changes occur transactionally.
+* Inventory movement history must not be silently overwritten.
+* Negative stock behavior must be explicitly configured.
+* Important adjustments must be auditable.
+* Final stock validation happens against authoritative database state.
+* Redis must never become the source of truth for stock.
+
+## Concurrency
+
+Inventory operations must account for concurrent sales, receiving and adjustments.
+
+Use appropriate:
+
+* Database constraints
+* Transactions
+* Locking/concurrency controls
+* Atomic updates
+
+where required.
 
 ## Outcome
 
-Buzzsynx has a reliable shared inventory engine.
+Buzzsynx has a reliable inventory engine suitable for POS and purchasing.
 
 ---
 
-# 9. Phase 5 — Purchasing
+# 10. Phase 5 — Suppliers & Purchasing
 
 ## Objective
 
-Connect suppliers and purchasing to inventory.
+Connect suppliers and purchasing operations to inventory.
 
-## Build
+## Core Entities
+
+Initial implementation may include:
 
 ```text
 Supplier
-PurchaseOrder
 Purchase
 PurchaseItem
 ```
 
+A formal purchase-order workflow should only be implemented when required by the product scope.
+
 ## Workflow
+
+```text
+Supplier
+   ↓
+Purchase / Receiving
+   ↓
+Purchase Items
+   ↓
+Stock Movement
+   ↓
+Inventory
+```
+
+If purchase orders are implemented later:
 
 ```text
 Supplier
@@ -415,16 +592,15 @@ Inventory
 * Supplier management
 * Purchase creation
 * Purchase items
-* Purchase status
-* Purchase history
 * Receiving
+* Purchase history
 * Cost tracking
-* Stock update
+* Inventory update
 * Purchase reporting
 
-## Industry considerations
+## Industry Extensions
 
-Pharmacy may require:
+Future industries may add:
 
 ```text
 Batch
@@ -433,68 +609,80 @@ Manufacturer
 MRP
 ```
 
-These should be introduced through industry capabilities rather than breaking the shared purchasing engine.
+These should be introduced through capability-specific models rather than forcing every industry into the same data structure.
 
 ## Outcome
 
-Purchasing becomes connected to inventory.
+Purchasing and receiving can safely update inventory.
 
 ---
 
-# 10. Phase 6 — POS & Sales
+# 11. Phase 6 — POS & Sales
 
 ## Objective
 
 Build the primary transactional workflow.
 
-## POS flow
+POS is the user interface/workflow for checkout.
+
+**Sale is the canonical business domain.**
+
+## POS Flow
 
 ```text
-Search Product
-      ↓
+Search / Scan Product
+        ↓
 Add to Cart
-      ↓
+        ↓
+Validate Product
+        ↓
 Validate Stock
-      ↓
+        ↓
 Calculate Totals
-      ↓
-Apply Discount/Tax
-      ↓
-Payment
-      ↓
+        ↓
+Apply Discount / Tax
+        ↓
+Determine Payment
+        ↓
 Create Sale
-      ↓
-Stock Movement
-      ↓
-Invoice
+        ↓
+Create Stock Movements
+        ↓
+Create Invoice Record
+        ↓
+Commit
 ```
 
-## Critical rule
+## Transaction Boundary
 
-The checkout operation must be transactional.
+Critical database mutations should occur inside an appropriate PostgreSQL transaction.
 
 Conceptually:
 
 ```text
-BEGIN TRANSACTION
+BEGIN
 
 Create Sale
 Create Sale Items
-Create Payment
+Create Payment Allocation(s)
 Create Stock Movements
 Update Inventory
-Create Invoice
+Create Invoice Record
 
 COMMIT
 ```
 
-If a critical operation fails:
+If the transaction fails:
 
 ```text
 ROLLBACK
 ```
 
+External provider calls must not be placed inside the database transaction.
+
 ## POS Features
+
+Initial scope:
 
 * Product search
 * Barcode lookup
@@ -503,35 +691,39 @@ ROLLBACK
 * Discounts
 * Taxes
 * Payment methods
-* Invoice generation
-* Returns
+* Invoice record
 * Sale history
+* Returns
+
+Receipt/PDF generation can be asynchronous.
 
 ## Outcome
 
-A tenant can perform an actual sale from Buzzsynx.
+A tenant can complete a real supermarket sale through Buzzsynx.
 
 ---
 
-# 11. Phase 7 — Customers & Payments
+# 12. Phase 7 — Customers & Payments
 
 ## Objective
 
-Complete the customer-facing transaction ecosystem.
+Complete the customer and payment lifecycle.
 
 ## Customers
 
-Build:
+Implement:
 
 * Customer profiles
 * Contact information
 * Purchase history
 * Customer activity
-* Customer segmentation foundation
+* Basic customer segmentation foundation
+
+Customer association should remain optional for walk-in sales where applicable.
 
 ## Payments
 
-Support the architecture for:
+Support configured methods such as:
 
 ```text
 Cash
@@ -541,47 +733,734 @@ Online Payment
 Other configured methods
 ```
 
-## Payment architecture
+## Payment Model
 
-Payment processing must distinguish:
+Separate:
 
 ```text
-Order/Sale
+Sale
+   ↓
 Payment Attempt
+   ↓
 Payment
-Webhook
+   ↓
 Payment Status
 ```
 
-External payment providers must not directly determine the business database state without server-side verification.
+For online providers:
+
+```text
+Payment Provider
+      ↓
+Signed Webhook
+      ↓
+Server Verification
+      ↓
+Idempotent Processing
+      ↓
+Database State
+```
+
+The frontend must never be treated as the authority for successful payment.
+
+## Credit
+
+If credit sales are supported:
+
+```text
+Credit Sale
+    ≠
+Successful Payment
+```
+
+Credit should be represented as an outstanding receivable rather than a completed payment.
 
 ## Outcome
 
-Buzzsynx can manage customers and payment lifecycle reliably.
+Customer and payment lifecycles are represented correctly in the business system.
 
 ---
 
-# 12. Phase 8 — Industry Capability Engine
+# 13. Phase 8 — Supermarket Vertical Slice
 
 ## Objective
 
-Make the shared business engine adaptable to multiple industries.
+Complete the first end-to-end industry implementation before expanding into other industries.
 
-The application should **not** become four separate products.
+The supermarket/grocery workflow becomes the canonical implementation target.
 
-Instead:
+## Complete Flow
 
 ```text
-Shared Business Engine
-        +
-Industry Capabilities
-        +
-Tenant Configuration
+Tenant Onboarding
+      ↓
+Store
+      ↓
+Products
+      ↓
+Suppliers
+      ↓
+Purchasing / Receiving
+      ↓
+Inventory
+      ↓
+POS
+      ↓
+Sale
+      ↓
+Payment
+      ↓
+Invoice
+      ↓
+Analytics
+      ↓
+Business Insights
 ```
+
+## Supermarket Capabilities
+
+Prioritize:
+
+* Barcode scanning
+* Fast product search
+* Units
+* Product pricing
+* Offers/discounts where required
+* Fast POS
+* Store inventory
+* Supplier purchasing
+* Low-stock visibility
+* Sales reporting
+
+Weight-based products should be introduced only if required by the actual supermarket workflow.
+
+## Exit Criteria
+
+The complete supermarket workflow must work across:
+
+* Authentication
+* Tenant isolation
+* Store access
+* Product management
+* Purchasing
+* Inventory
+* POS
+* Sales
+* Payments
+* Invoice records
+* Basic reporting
+
+## Outcome
+
+Buzzsynx has its first complete, demonstrable business vertical.
 
 ---
 
-# 13. Pharmacy Capability
+# 14. Phase 9 — Analytics & Reporting
+
+## Objective
+
+Turn operational data into useful business information.
+
+## Initial Metrics
+
+Examples:
+
+```text
+Today's Sales
+Orders
+Revenue
+Top Products
+Low Stock
+Purchase Value
+Customer Activity
+Payment Summary
+```
+
+Profit calculations should only be exposed once cost and revenue data are modeled consistently.
+
+## Reports
+
+Potential reports:
+
+* Sales report
+* Purchase report
+* Inventory report
+* Product performance
+* Customer report
+* Supplier report
+* Payment report
+* Tax report
+
+## Architecture
+
+```text
+Operational Data
+       ↓
+Aggregation
+       ↓
+Analytics Queries / Read Models
+       ↓
+Dashboard / Reports
+```
+
+Heavy analytics calculations should not unnecessarily block transactional APIs.
+
+Caching can be introduced for appropriate read-heavy analytics.
+
+## Outcome
+
+Businesses can understand what is happening operationally.
+
+---
+
+# 15. Phase 10 — Automation & Notifications
+
+## Objective
+
+Move non-critical work away from synchronous request processing.
+
+Use:
+
+```text
+Redis
+   +
+BullMQ
+   +
+Workers
+```
+
+## Initial Job Categories
+
+Potential queues:
+
+```text
+AI
+Notifications
+Emails
+Reports
+Analytics
+Maintenance
+```
+
+Potential jobs:
+
+```text
+Low Stock Alert
+Expiry Alert
+Sales Summary
+Report Generation
+Email
+Notification
+Scheduled Analytics
+```
+
+## Job Design
+
+Each important job should carry only the context required to execute it.
+
+Example conceptual payload:
+
+```text
+jobType
+jobVersion
+tenantId
+storeId
+resourceId
+idempotencyKey
+```
+
+Workers should operate using trusted service context.
+
+## Reliability
+
+For important business events:
+
+```text
+DB Transaction
+      ↓
+Outbox
+      ↓
+Commit
+      ↓
+Publisher
+      ↓
+BullMQ
+      ↓
+Worker
+```
+
+Best-effort background tasks may use simpler post-commit enqueueing where loss of the task is acceptable.
+
+## Outcome
+
+Buzzsynx can perform background work without blocking core business transactions.
+
+---
+
+# 16. Phase 11 — AI Intelligence
+
+## Objective
+
+Add AI only after reliable operational data and deterministic business workflows exist.
+
+AI is an **intelligence layer**, not the business authority.
+
+## Initial AI Capabilities
+
+### Demand Forecasting
+
+Estimate future product demand.
+
+### Reorder Recommendations
+
+Identify products that may require replenishment.
+
+### Dead Stock Detection
+
+Identify products with weak movement.
+
+### Expiry Intelligence
+
+Identify inventory approaching expiry where expiry data exists.
+
+### Sales Intelligence
+
+Analyze:
+
+* Sales patterns
+* Product performance
+* Customer trends
+* Revenue patterns
+
+### Anomaly Detection
+
+Identify unusual business activity for review.
+
+### Business Summary
+
+Generate understandable operational summaries.
+
+## AI Architecture
+
+```text
+Business Data
+      ↓
+Approved Application Service
+      ↓
+AI Context
+      ↓
+AI Provider
+      ↓
+Structured Output
+      ↓
+Validation
+      ↓
+Stored Insight / Recommendation
+```
+
+AI must not receive unrestricted database access.
+
+AI must not directly:
+
+* Modify inventory
+* Approve payments
+* Change prices
+* Authorize users
+* Perform privileged administration
+
+unless a future explicitly designed workflow introduces controlled, validated automation.
+
+## Core Principle
+
+```text
+AI
+ ↓
+Recommendation
+ ↓
+Human / Deterministic Business Rule
+ ↓
+Action
+```
+
+## Outcome
+
+Buzzsynx gains useful business intelligence without making AI responsible for critical business correctness.
+
+---
+
+# 17. Phase 12 — Security & Hardening
+
+## Objective
+
+Strengthen the application before serious production deployment.
+
+## Application Security
+
+Review:
+
+* Authentication
+* Authorization
+* RBAC
+* Capability checks
+* Tenant isolation
+* Store isolation
+* Input validation
+* Rate limiting
+* Secure headers
+* CORS
+* CSRF where applicable
+* Secure cookies/tokens
+* Password security
+* Session security
+
+## Database Security
+
+Review:
+
+* Tenant-scoped queries
+* Store-scoped queries
+* Foreign keys
+* Constraints
+* Unique indexes
+* Transaction boundaries
+* Sensitive data handling
+* Database credentials
+* Least privilege
+
+## API Security
+
+Expected flow:
+
+```text
+Authentication
+      ↓
+Tenant Context
+      ↓
+Store Context
+      ↓
+Authorization
+      ↓
+Capability Check
+      ↓
+Validation
+      ↓
+Business Logic
+```
+
+## Critical Review
+
+Explicitly test for:
+
+* IDOR
+* Cross-tenant access
+* Cross-store access
+* Mass assignment
+* Privilege escalation
+* Replay attacks
+* Webhook abuse
+* Rate-limit bypass
+
+## Outcome
+
+The application has a production-oriented application security baseline.
+
+---
+
+# 18. Phase 13 — DevOps & Deployment
+
+## Objective
+
+Make Buzzsynx reliably buildable and deployable.
+
+## Build
+
+Establish:
+
+* Docker images
+* Docker Compose for local/development use
+* GitHub Actions
+* CI pipeline
+* Environment configuration
+* Database migration workflow
+* Worker deployment
+* Health checks
+* Graceful shutdown
+* Deployment process
+
+## CI
+
+```text
+Push / Pull Request
+        ↓
+Install
+        ↓
+Lint
+        ↓
+Test
+        ↓
+Build
+        ↓
+Security Checks
+```
+
+## CD
+
+```text
+Validated Build
+      ↓
+Staging
+      ↓
+Migration / Validation
+      ↓
+Production
+```
+
+Production deployment should include a safe migration and rollback strategy.
+
+## AWS
+
+AWS is the target cloud environment, but infrastructure should be introduced according to actual deployment needs.
+
+Do not introduce complex AWS architecture merely to demonstrate AWS knowledge.
+
+## Outcome
+
+Buzzsynx becomes consistently deployable.
+
+---
+
+# 19. Phase 14 — Observability
+
+## Objective
+
+Make the application operationally visible.
+
+## Logging
+
+Use structured application logging.
+
+Track useful events such as:
+
+```text
+Request Started
+Request Failed
+User Login
+Tenant Created
+Sale Created
+Payment Updated
+Stock Adjusted
+AI Job Started
+AI Job Failed
+Background Job Failed
+```
+
+Logs must not expose:
+
+* Passwords
+* Tokens
+* API keys
+* Payment secrets
+* Sensitive personal data unnecessarily
+
+## Monitoring
+
+Establish:
+
+```text
+Logs
+Metrics
+Errors
+Health Checks
+Audit Logs
+```
+
+## Audit vs Technical Logs
+
+They are different.
+
+```text
+Technical Log
+→ Helps engineers diagnose system behavior.
+
+Audit Log
+→ Records important business/security actions.
+```
+
+## Potential Tooling
+
+Depending on deployment needs:
+
+* Sentry
+* Cloud monitoring
+* Structured logs
+* Application metrics
+
+## Outcome
+
+Problems can be detected, investigated and diagnosed.
+
+---
+
+# 20. Phase 15 — SaaS Readiness
+
+## Objective
+
+Prepare Buzzsynx for commercial multi-tenant operation after the core product is validated.
+
+## Tenant Management
+
+Establish:
+
+* Tenant onboarding
+* Tenant settings
+* Tenant lifecycle
+* Industry configuration
+* Capability enablement
+* Store management
+* User/membership management
+
+Tenant lifecycle may include:
+
+```text
+PENDING
+ACTIVE
+SUSPENDED
+ARCHIVED
+```
+
+## Subscription Foundation
+
+Only after core product workflows are stable, introduce:
+
+```text
+Plan
+Subscription
+Usage
+Limits
+Billing Status
+```
+
+Possible commercial plans can be designed separately.
+
+## Usage Controls
+
+Potential limits:
+
+* Users
+* Stores
+* Products
+* Transactions
+* Storage
+* AI usage
+* Reports
+
+## Important Distinction
+
+```text
+Subscription / Entitlement
+        ≠
+Authorization
+```
+
+A plan may determine whether a capability is available.
+
+RBAC and permissions determine whether an authorized user can perform an action.
+
+## Outcome
+
+Buzzsynx has the foundation for commercial SaaS operation without allowing billing complexity to distract from the core product.
+
+---
+
+# 21. Phase 16 — Production Readiness
+
+## Objective
+
+Perform final system-wide validation before a production release.
+
+## Architecture
+
+* [ ] Module boundaries reviewed
+* [ ] Database design reviewed
+* [ ] Tenant isolation verified
+* [ ] Store isolation verified
+* [ ] API architecture reviewed
+* [ ] No unjustified infrastructure complexity
+
+## Security
+
+* [ ] Authentication verified
+* [ ] Authorization verified
+* [ ] RBAC verified
+* [ ] Tenant isolation tested
+* [ ] Store isolation tested
+* [ ] Secrets reviewed
+* [ ] Rate limiting reviewed
+* [ ] Security headers reviewed
+* [ ] Webhook security verified
+
+## Business
+
+* [ ] Products
+* [ ] Inventory
+* [ ] Suppliers
+* [ ] Purchasing
+* [ ] POS
+* [ ] Sales
+* [ ] Customers
+* [ ] Payments
+* [ ] Invoices
+* [ ] Returns
+
+## AI
+
+* [ ] Provider boundary
+* [ ] Approved application tools
+* [ ] Output validation
+* [ ] Tenant/store isolation
+* [ ] Failure handling
+* [ ] Usage controls
+* [ ] No critical transaction dependency
+
+## Infrastructure
+
+* [ ] Docker
+* [ ] CI/CD
+* [ ] Database migrations
+* [ ] Redis
+* [ ] Workers
+* [ ] Health checks
+* [ ] Graceful shutdown
+
+## Operations
+
+* [ ] Structured logging
+* [ ] Error tracking
+* [ ] Audit logs
+* [ ] Metrics
+* [ ] Backup strategy
+* [ ] Restore validation
+* [ ] Rollback strategy
+* [ ] Incident procedures
+
+## Outcome
+
+The system has passed a structured production-readiness review.
+
+---
+
+# 22. Phase 17 — Future Industry Expansion
+
+## Objective
+
+Extend Buzzsynx beyond the initial supermarket implementation using the shared business engine.
+
+These industries are **future capabilities**, not requirements for the first production milestone.
+
+---
+
+## 22.1 Pharmacy Capability
 
 Potential capabilities:
 
@@ -599,36 +1478,18 @@ Example:
 
 ```text
 Product
-  └── Medicine Details
-       ├── Manufacturer
-       ├── Batch
-       ├── Expiry
-       └── MRP
+   └── Pharmacy Details
+        ├── Manufacturer
+        ├── Batch
+        ├── Expiry
+        └── MRP
 ```
+
+Additional regulatory requirements must be researched and implemented before production use in this industry.
 
 ---
 
-# 14. Supermarket Capability
-
-Potential capabilities:
-
-```text
-Barcode
-Bulk Products
-Units
-Offers
-Fast Product Search
-Fast POS
-Weight-based Products
-```
-
-Focus:
-
-> High-speed product lookup and checkout.
-
----
-
-# 15. Clothing Capability
+## 22.2 Clothing Capability
 
 Potential capabilities:
 
@@ -654,7 +1515,7 @@ T-Shirt
 
 ---
 
-# 16. Restaurant Capability
+## 22.3 Restaurant Capability
 
 Potential capabilities:
 
@@ -668,7 +1529,7 @@ Modifiers
 Food Categories
 ```
 
-Workflow:
+Potential workflow:
 
 ```text
 Menu
@@ -684,561 +1545,134 @@ Billing
 Payment
 ```
 
+Restaurant workflows should be implemented as capabilities rather than forcing restaurant concepts into the supermarket schema.
+
 ---
 
-# 17. Phase 9 — Analytics & Reporting
+# 23. Industry Capability Architecture
 
-## Objective
+The long-term model is:
 
-Turn operational data into useful business information.
-
-## Dashboard metrics
+```text
+Shared Business Engine
+        +
+Industry Capabilities
+        +
+Tenant Configuration
+```
 
 Examples:
 
 ```text
-Today's Sales
-Orders
-Revenue
-Profit
-Top Products
-Low Stock
-Purchase Value
-Customer Activity
+Shared
+ ├── Products
+ ├── Inventory
+ ├── Purchasing
+ ├── Sales
+ ├── Customers
+ ├── Payments
+ └── Reporting
+
+Supermarket
+ ├── Barcode
+ ├── Fast POS
+ └── Units
+
+Pharmacy
+ ├── Batch
+ ├── Expiry
+ └── Prescription
+
+Clothing
+ ├── Variants
+ ├── Size
+ └── Color
+
+Restaurant
+ ├── Menu
+ ├── Kitchen
+ └── Tables
 ```
 
-## Reports
+Industry configuration must not become a security boundary.
 
-Potential reports:
-
-* Sales report
-* Purchase report
-* Inventory report
-* Product performance
-* Customer report
-* Supplier report
-* Payment report
-* Tax report
-
-## Analytics architecture
+Authorization remains based on:
 
 ```text
-Operational Data
-       ↓
-Aggregation
-       ↓
-Analytics
-       ↓
-Dashboard / Reports
+User
++
+Membership
++
+Role
++
+Permission
++
+Store Scope
++
+Capability
 ```
-
-Heavy analytics calculations should not unnecessarily slow down transactional APIs.
-
-## Outcome
-
-Businesses can understand what is happening in their operations.
 
 ---
 
-# 18. Phase 10 — AI Intelligence
+# 24. Recommended Coding Sequence
 
-## Objective
-
-Add AI after reliable business data and workflows exist.
-
-AI should operate on validated business information.
-
-## Initial AI capabilities
-
-### Demand Forecasting
-
-Estimate future product demand.
-
-### Reorder Recommendations
-
-Identify products that may need replenishment.
-
-### Dead Stock Detection
-
-Identify products with weak movement.
-
-### Expiry Intelligence
-
-Identify inventory approaching expiry.
-
-### Sales Intelligence
-
-Analyze:
-
-* Sales patterns
-* Product performance
-* Customer trends
-* Revenue patterns
-
-### Anomaly Detection
-
-Identify unusual business activity.
-
-### Business Summary
-
-Generate understandable summaries such as:
-
-```text
-Sales increased this week.
-Several products are approaching reorder levels.
-Some inventory has remained inactive for an extended period.
-```
-
-## AI rule
-
-AI should recommend.
-
-The application decides.
-
-Critical operations remain deterministic.
-
-```text
-AI
- ↓
-Recommendation
- ↓
-Human / Business Rule
- ↓
-Action
-```
-
-## Outcome
-
-Buzzsynx evolves from a business management system into an intelligent operations platform.
-
----
-
-# 19. Phase 11 — Notifications & Automation
-
-## Objective
-
-Automate repetitive operational work.
-
-Use:
-
-```text
-Redis
- +
-BullMQ
- +
-Workers
-```
-
-## Jobs
-
-Potential jobs:
-
-```text
-Low Stock Alert
-Expiry Alert
-Sales Summary
-AI Forecast
-Report Generation
-Email
-Notification
-Scheduled Analytics
-```
-
-## Workflow
-
-```text
-Business Event
-      ↓
-Queue
-      ↓
-Worker
-      ↓
-Processing
-      ↓
-Notification / Result
-```
-
-The main API should not wait unnecessarily for background jobs.
-
----
-
-# 20. Phase 12 — Security & Hardening
-
-## Objective
-
-Strengthen the application before serious deployment.
-
-## Application security
-
-Implement and review:
-
-* Authentication security
-* Authorization
-* RBAC
-* Capability checks
-* Tenant isolation
-* Input validation
-* Rate limiting
-* Secure headers
-* CORS
-* CSRF considerations where applicable
-* Secure cookies/tokens
-* Password security
-* Session security
-
-## Database security
-
-Review:
-
-* Tenant-scoped queries
-* Constraints
-* Foreign keys
-* Unique indexes
-* Transaction boundaries
-* Sensitive data handling
-
-## API security
-
-Review:
-
-```text
-Authentication
-      ↓
-Tenant
-      ↓
-Authorization
-      ↓
-Validation
-      ↓
-Business Logic
-```
-
-## Outcome
-
-The application is hardened against common application-level threats.
-
----
-
-# 21. Phase 13 — DevOps & Deployment
-
-## Objective
-
-Make Buzzsynx reliably deployable.
-
-## Build
-
-* Docker images
-* Docker Compose
-* GitHub Actions
-* CI pipeline
-* Environment configuration
-* Database migration workflow
-* Worker deployment
-* Health checks
-* Graceful shutdown
-* Deployment scripts
-
-## CI
-
-```text
-Push / PR
-   ↓
-Install
-   ↓
-Lint
-   ↓
-Test
-   ↓
-Build
-   ↓
-Security Checks
-```
-
-## CD
-
-```text
-Validated Build
-      ↓
-Staging
-      ↓
-Validation
-      ↓
-Production
-```
-
-## Outcome
-
-Buzzsynx becomes consistently deployable.
-
----
-
-# 22. Phase 14 — Observability
-
-## Objective
-
-Make the application operationally visible.
-
-Implement:
-
-```text
-Logs
-Metrics
-Errors
-Health Checks
-Audit Logs
-```
-
-Track important events:
-
-```text
-User Login
-Tenant Creation
-Sale Created
-Payment Completed
-Stock Adjusted
-AI Job Started
-AI Job Failed
-Background Job Failed
-```
-
-## Tools
-
-Potential tooling:
-
-```text
-Sentry
-Cloud monitoring
-Structured logging
-Application metrics
-```
-
-Exact infrastructure tooling can be finalized during deployment.
-
-## Outcome
-
-Problems can be detected, investigated, and diagnosed.
-
----
-
-# 23. Phase 15 — SaaS Readiness
-
-## Objective
-
-Prepare Buzzsynx to operate as a real multi-tenant SaaS platform.
-
-## Build
-
-### Tenant Management
-
-* Tenant onboarding
-* Tenant settings
-* Tenant status
-* Industry configuration
-* Feature capabilities
-
-### Subscription Foundation
-
-Design for:
-
-```text
-Plan
-Subscription
-Usage
-Limits
-Billing Status
-```
-
-Potential plans:
-
-```text
-Free
-Starter
-Business
-Enterprise
-```
-
-Actual pricing should be determined separately.
-
-## Usage Controls
-
-Potential limits:
-
-* Users
-* Products
-* Transactions
-* Storage
-* AI usage
-* Reports
-* Locations
-
-## Outcome
-
-Buzzsynx has the architectural foundation for commercial SaaS operation.
-
----
-
-# 24. Phase 16 — Production Readiness
-
-## Objective
-
-Perform final system-wide validation.
-
-Review:
-
-### Architecture
-
-* [ ] Module boundaries
-* [ ] Database design
-* [ ] Multi-tenancy
-* [ ] API architecture
-
-### Security
-
-* [ ] Authentication
-* [ ] Authorization
-* [ ] Tenant isolation
-* [ ] Secrets
-* [ ] Rate limiting
-
-### Business
-
-* [ ] Products
-* [ ] Inventory
-* [ ] Purchasing
-* [ ] POS
-* [ ] Sales
-* [ ] Customers
-* [ ] Payments
-
-### AI
-
-* [ ] Provider abstraction
-* [ ] Output validation
-* [ ] Tenant isolation
-* [ ] AI failure handling
-* [ ] Usage controls
-
-### Infrastructure
-
-* [ ] Docker
-* [ ] CI/CD
-* [ ] Database migrations
-* [ ] Redis
-* [ ] Workers
-* [ ] Health checks
-
-### Operations
-
-* [ ] Logging
-* [ ] Error tracking
-* [ ] Audit logs
-* [ ] Backup strategy
-* [ ] Rollback strategy
-
----
-
-# 25. Phase 17 — Portfolio / Product Release
-
-## Objective
-
-Turn the completed project into a demonstrable engineering product.
-
-Buzzsynx should demonstrate:
-
-```text
-Modern Frontend
-        +
-Backend Architecture
-        +
-PostgreSQL
-        +
-Prisma
-        +
-Redis
-        +
-BullMQ
-        +
-Multi-Tenancy
-        +
-RBAC
-        +
-AI
-        +
-Docker
-        +
-CI/CD
-        +
-Cloud Deployment
-        +
-Observability
-```
-
-## Demonstration Tenants
-
-Create controlled demonstration environments:
-
-```text
-Demo Tenant 1 → Pharmacy
-Demo Tenant 2 → Supermarket
-Demo Tenant 3 → Clothing
-Demo Tenant 4 → Restaurant
-```
-
-This demonstrates that the architecture supports multiple business models without creating separate applications.
-
----
-
-# 26. Recommended Implementation Order
-
-The actual coding sequence should remain focused.
+The actual implementation sequence should remain focused.
 
 ```text
 1. Project Foundation
         ↓
-2. Backend / Frontend Foundation
+2. Application Foundation
         ↓
 3. Authentication
         ↓
-4. Tenant + RBAC
+4. Tenant + Membership + Store Access
         ↓
-5. Products
+5. RBAC / Permissions
         ↓
-6. Inventory
+6. Products
         ↓
-7. Suppliers + Purchasing
+7. Inventory
         ↓
-8. POS
+8. Suppliers + Purchasing
         ↓
-9. Sales
+9. POS
         ↓
-10. Customers
+10. Sales + Invoice
         ↓
-11. Payments
+11. Customers
         ↓
-12. Industry Capabilities
+12. Payments
         ↓
-13. Analytics
+13. Supermarket Vertical Slice
         ↓
-14. Redis + BullMQ
+14. Analytics
         ↓
-15. AI
+15. Redis Caching
         ↓
-16. Notifications
+16. BullMQ + Workers
         ↓
-17. Security Hardening
+17. Notifications
         ↓
-18. CI/CD
+18. AI
         ↓
-19. Observability
+19. Security Hardening
         ↓
-20. SaaS Readiness
+20. CI/CD
         ↓
-21. Production Deployment
+21. Observability
+        ↓
+22. SaaS Readiness
+        ↓
+23. Production Deployment
+        ↓
+24. Future Industry Capabilities
 ```
+
+This sequence intentionally avoids building future industries before the first complete vertical slice is validated.
 
 ---
 
-# 27. What Should NOT Be Built Too Early
+# 25. What Should NOT Be Built Too Early
 
 Avoid premature complexity.
 
@@ -1247,60 +1681,74 @@ Do not start with:
 ```text
 Microservices
 Kubernetes
-Complex event-driven architecture
-Advanced AI agents
-Multi-region infrastructure
-Complex billing system
+Service Mesh
+Multi-region Infrastructure
+Complex Event-Driven Architecture
+Advanced Autonomous AI Agents
 Enterprise SSO
-Advanced distributed systems
+Complex Subscription Billing
+Multiple Databases
+Distributed Transactions
 ```
 
 The initial architecture should remain:
 
 ```text
 Modular Monolith
-+
+      +
 PostgreSQL
-+
+      +
 Redis
-+
+      +
 BullMQ
-+
+      +
 Docker
 ```
 
-The system should be designed so that individual modules can be extracted later if real scale or organizational requirements justify it.
+The architecture should preserve clean module boundaries so that a module can be extracted later if real scale, reliability or organizational requirements justify it.
+
+> **Design for future extraction. Do not build future infrastructure prematurely.**
 
 ---
 
-# 28. Critical Milestones
+# 26. Critical Milestones
 
 ## Milestone 1 — Foundation
 
 ```text
-Application runs
-Database works
-Redis works
-Docker works
+Application Runs
+Database Works
+Redis Works
+API Works
+Docker Works
 ```
+
+---
 
 ## Milestone 2 — SaaS Core
 
 ```text
 Authentication
 Tenant
+Membership
+Store
 RBAC
-Tenant isolation
+Tenant Isolation
+Store Isolation
 ```
+
+---
 
 ## Milestone 3 — Business Engine
 
 ```text
 Products
 Inventory
-Purchasing
 Suppliers
+Purchasing
 ```
+
+---
 
 ## Milestone 4 — Transaction Engine
 
@@ -1309,24 +1757,33 @@ POS
 Sales
 Payments
 Invoices
+Returns
 ```
 
-## Milestone 5 — Industry Engine
+---
+
+## Milestone 5 — Supermarket Product
 
 ```text
-Pharmacy
-Supermarket
-Clothing
-Restaurant
-```
-
-## Milestone 6 — Intelligence
-
-```text
+Complete Supermarket Workflow
 Analytics
 Reports
+Operational Dashboard
+```
+
+---
+
+## Milestone 6 — Intelligence & Automation
+
+```text
+Redis
+BullMQ
+Notifications
+Analytics Jobs
 AI
 ```
+
+---
 
 ## Milestone 7 — Production Engineering
 
@@ -1335,50 +1792,498 @@ Security
 CI/CD
 Workers
 Observability
+Backups
 Deployment
 ```
 
-## Milestone 8 — SaaS
+---
+
+## Milestone 8 — SaaS Commercialization
 
 ```text
+Plans
 Subscriptions
 Usage
-Plans
 Quotas
-Tenant administration
+Entitlements
+Tenant Administration
 ```
 
 ---
 
-# 29. Definition of Done
+## Milestone 9 — Industry Expansion
 
-Buzzsynx is considered substantially complete when:
-
-* A user can register and authenticate.
-* A business can create a tenant.
-* Multiple tenants can operate independently.
-* RBAC controls access.
-* Products can be managed.
-* Inventory is tracked through stock movements.
-* Suppliers and purchases are supported.
-* POS transactions work transactionally.
-* Sales and payments are recorded.
-* Customers can be managed.
-* Industry capabilities can be enabled per tenant.
-* Analytics and reports provide operational insights.
-* AI provides useful business intelligence.
-* Background processing works through BullMQ.
-* Redis is used appropriately for caching and temporary workloads.
-* Security controls are implemented.
-* CI/CD is operational.
-* Logging and monitoring are available.
-* The application can be containerized and deployed.
-* The system is documented.
-* The architecture remains understandable and maintainable.
+```text
+Pharmacy
+Clothing
+Restaurant
+Other Validated Industries
+```
 
 ---
 
-# 30. Final Execution Principle
+# 27. Definition of Done
+
+A feature is not complete merely because its UI exists.
+
+A meaningful feature should satisfy the relevant parts of:
+
+```text
+Requirement
+   ↓
+Design
+   ↓
+Database
+   ↓
+API
+   ↓
+Validation
+   ↓
+Authorization
+   ↓
+Tenant / Store Isolation
+   ↓
+Business Logic
+   ↓
+Transaction / Idempotency
+   ↓
+UI States
+   ↓
+Error Handling
+   ↓
+Observability
+   ↓
+Testing
+   ↓
+Documentation
+   ↓
+Lint
+   ↓
+Build
+   ↓
+Deployment / Migration Review
+```
+
+For the initial supermarket release, the product should demonstrate a complete working path from:
+
+```text
+Tenant
+ ↓
+Store
+ ↓
+Product
+ ↓
+Purchase
+ ↓
+Inventory
+ ↓
+POS
+ ↓
+Sale
+ ↓
+Payment
+ ↓
+Invoice
+ ↓
+Analytics
+```
+
+---
+
+# 28. Critical Workflow Verification
+
+## Onboarding
+
+Verify:
+
+* User creation
+* Tenant creation
+* Initial store creation
+* Owner membership
+* Default capabilities
+* Tenant lifecycle
+* Initial dashboard access
+
+## Authentication
+
+Verify:
+
+* Login
+* Logout
+* Session/token handling
+* Password security
+* Authorization context
+
+## Inventory
+
+Verify:
+
+* Purchase movement
+* Sale movement
+* Return
+* Adjustment
+* Damage
+* Transfer where implemented
+* Concurrency
+* Auditability
+
+## POS
+
+Verify:
+
+* Product lookup
+* Cart
+* Stock validation
+* Pricing
+* Tax
+* Discount
+* Payment
+* Sale creation
+* Inventory update
+* Invoice record
+
+## Payments
+
+Verify:
+
+* Payment attempt
+* Success
+* Failure
+* Pending state
+* Webhook
+* Duplicate webhook
+* Replay protection
+
+## AI
+
+Verify:
+
+* Tenant isolation
+* Store isolation
+* Approved data access
+* Output validation
+* Failure handling
+* Usage tracking
+* No direct critical mutation
+
+## Background Jobs
+
+Verify:
+
+* Job creation
+* Retry
+* Backoff
+* Idempotency
+* Failure handling
+* Worker recovery
+* Monitoring
+
+---
+
+# 29. Graceful Failure Requirements
+
+Buzzsynx should be designed so that non-critical failures do not corrupt core business operations.
+
+Examples:
+
+```text
+AI Failure
+    ≠
+POS Failure
+```
+
+```text
+Email Failure
+    ≠
+Sale Rollback
+```
+
+```text
+Report Failure
+    ≠
+Inventory Failure
+```
+
+```text
+Redis Cache Failure
+    ≠
+Business Data Loss
+```
+
+```text
+Worker Failure
+    ≠
+Database Transaction Failure
+```
+
+Core transactional operations should rely on PostgreSQL and deterministic application logic.
+
+---
+
+# 30. Environment Strategy
+
+Maintain clear separation between:
+
+```text
+Development
+    ↓
+Testing / CI
+    ↓
+Staging
+    ↓
+Production
+```
+
+Each environment should have separate:
+
+* Database
+* Redis where appropriate
+* Secrets
+* External service credentials
+* Storage
+* Configuration
+
+Production secrets must never be committed to Git.
+
+---
+
+# 31. Documentation Synchronization
+
+The implementation and architecture documentation must remain synchronized.
+
+Relevant documents should be updated when changes materially affect:
+
+* Architecture
+* Database
+* API
+* Multi-tenancy
+* Security
+* AI
+* Caching
+* Queues
+* DevOps
+* Observability
+* Feature scope
+
+Documentation should describe the **current intended architecture**, not an abandoned implementation.
+
+---
+
+# 32. Technical Debt Management
+
+When intentionally deferring a technical improvement, record:
+
+```text
+Problem
+Impact
+Reason for Deferral
+Future Solution
+Priority
+```
+
+Technical debt is acceptable when it is:
+
+* Known
+* Bounded
+* Documented
+* Deliberate
+
+It should not become accidental architecture.
+
+---
+
+# 33. Performance Strategy
+
+Performance work should be evidence-driven.
+
+Prioritize:
+
+* Database indexes
+* Query efficiency
+* N+1 prevention
+* Pagination
+* Payload size
+* Appropriate caching
+* Queue concurrency
+* Background processing
+* Analytics optimization
+
+Do not optimize based solely on assumptions.
+
+> **Measure first. Optimize second.**
+
+Critical POS and inventory operations must prioritize correctness over premature micro-optimization.
+
+---
+
+# 34. Dependency Strategy
+
+New dependencies should be added only when they provide meaningful value.
+
+Before adding a dependency, consider:
+
+* Is it actually required?
+* Does it duplicate an existing capability?
+* Is it actively maintained?
+* Is the license acceptable?
+* Does it introduce security risk?
+* Does it increase operational complexity?
+* Can the requirement be solved simply without it?
+
+Avoid dependency accumulation merely because a library is popular.
+
+---
+
+# 35. AI-Assisted Development Standard
+
+AI-generated code must be treated as **untrusted code until reviewed**.
+
+AI tools may assist with:
+
+* Implementation
+* Refactoring
+* Documentation
+* Debugging
+* Test generation
+* Code review
+
+AI must not independently redefine the architecture.
+
+Recommended workflow:
+
+```text
+Understand
+    ↓
+Check Architecture
+    ↓
+Plan
+    ↓
+Implement
+    ↓
+Review
+    ↓
+Lint
+    ↓
+Build
+    ↓
+Test
+    ↓
+Security Review
+    ↓
+Tenant / Store Isolation Review
+    ↓
+Documentation
+    ↓
+Commit
+```
+
+Generated code must be reviewed for:
+
+* Security
+* Tenant isolation
+* Authorization
+* Data integrity
+* Transactions
+* Error handling
+* Performance
+* Maintainability
+
+---
+
+# 36. Git & Change Management
+
+Even as a solo developer, significant changes should be treated as reviewable engineering changes.
+
+Use:
+
+* Meaningful commits
+* Small logical changes
+* Clear commit messages
+* Feature branches where useful
+* Self-review before merging
+* Migration review
+* Documentation updates
+
+Avoid large commits containing unrelated features and architectural changes.
+
+---
+
+# 37. Feature Flags & Capabilities
+
+Capability enablement may control whether an industry feature is available to a tenant.
+
+For example:
+
+```text
+Tenant
+   ↓
+Enabled Capability
+   ↓
+Feature Available
+```
+
+However:
+
+```text
+Capability
+    ≠
+Permission
+```
+
+and:
+
+```text
+Feature Flag
+    ≠
+Authorization
+```
+
+Authorization must still verify:
+
+```text
+User
++
+Membership
++
+Role
++
+Permission
++
+Store Scope
++
+Capability
+```
+
+---
+
+# 38. Final Execution Rules
+
+The following rules should guide development:
+
+1. Never trust client-side security decisions.
+2. Never trust a client-provided tenant ID for authorization.
+3. Always validate store access server-side.
+4. PostgreSQL remains the source of business truth.
+5. Never use Redis as authoritative business storage.
+6. Never allow AI to become the authority for critical calculations.
+7. Keep critical business rules deterministic.
+8. Avoid duplicate business logic across frontend and backend.
+9. Keep controllers thin.
+10. Keep domain logic inside appropriate modules/services.
+11. Use transactions for critical business mutations.
+12. Use idempotency for critical repeatable operations.
+13. Keep external provider calls outside database transactions.
+14. Do not allow important asynchronous work to silently disappear.
+15. Keep audit records separate from technical logs.
+16. Do not commit secrets.
+17. Do not introduce infrastructure without a real requirement.
+18. Do not build future industries before validating the first vertical slice.
+19. Review all AI-generated code.
+20. Do not call a feature complete until its workflow has been verified.
+
+---
+
+# 39. Final Execution Principle
 
 Buzzsynx should be developed as a sequence of **small, validated engineering milestones**, not as one giant implementation.
 
@@ -1387,11 +2292,13 @@ The core progression is:
 ```text
 Foundation
     ↓
+SaaS Core
+    ↓
 Business Engine
     ↓
 Transaction Engine
     ↓
-Industry Engine
+Supermarket Product
     ↓
 Intelligence
     ↓
@@ -1399,13 +2306,38 @@ Automation
     ↓
 Production Engineering
     ↓
-SaaS
+SaaS Commercialization
+    ↓
+Industry Expansion
 ```
 
 The most important rule is:
 
 > **Do not add complexity until the previous layer is stable.**
 
-Buzzsynx is intended to become a strong full-stack, backend, SaaS, AI, DevOps, and cloud engineering project. The architecture should therefore demonstrate real engineering decisions without introducing infrastructure complexity before it is necessary.
+Buzzsynx should demonstrate strong engineering across:
 
-**First brick, not the whole building.**
+* Full-stack development
+* Backend architecture
+* PostgreSQL
+* Prisma
+* Multi-tenancy
+* RBAC
+* Inventory
+* POS
+* Payments
+* Redis
+* BullMQ
+* AI
+* Docker
+* CI/CD
+* Cloud deployment
+* Observability
+
+But the goal is not to demonstrate every technology at once.
+
+The goal is to build a **real, understandable and reliable business system**, then progressively introduce the infrastructure and intelligence that genuinely improve it.
+
+> **Understand → Design → Build → Verify → Harden → Deliver**
+
+> **Buzzsynx — First Brick, Not the Whole Building.**
