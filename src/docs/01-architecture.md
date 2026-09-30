@@ -2,40 +2,71 @@
 
 **Document:** `01-architecture.md`
 **Project:** Buzzsynx
-**Document Status:** Draft — Architecture Baseline
+**Document Version:** `v1.0`
+**Document Status:** Architecture Baseline
 **Architecture Style:** Multi-Tenant Modular Monolith
-**Primary Goal:** Production-ready, industry-configurable SaaS platform
+**Product Type:** AI-Powered Business Operations SaaS
+**Initial Product Focus:** Supermarket / Grocery Retail
+**Primary Goal:** Build a secure, modular, production-oriented SaaS foundation that can support additional industries through configurable capabilities.
 
 ---
 
-## 1. Architecture Overview
+# 1. Architecture Overview
 
-Buzzsynx is a **multi-tenant business operations SaaS platform** designed to support multiple business industries through a shared core platform and configurable industry-specific capabilities.
+Buzzsynx is a **multi-tenant business operations SaaS platform** designed to help businesses manage products, inventory, purchasing, POS, sales, customers, payments, reporting and business intelligence from a unified platform.
 
-The platform will support businesses such as:
+The architecture is intentionally designed to support multiple industries, but Buzzsynx will **not attempt to fully implement every industry during the initial product release**.
+
+The first complete industry implementation will be:
+
+> **Supermarket / Grocery Retail**
+
+Other industries such as:
 
 * Pharmacy
-* Supermarket
 * Clothing
 * Restaurant
-* Other retail/business industries in the future
+* Clinic
+* Other retail and service businesses
 
-Each business operates as an isolated **tenant** within the same Buzzsynx platform.
+will be introduced progressively through the **Industry Capability Architecture**.
 
-The architecture follows:
+The fundamental architectural model is:
 
-* Multi-tenancy
+```text
+Shared Business Core
+        ↓
+Industry Capabilities
+        ↓
+Tenant Configuration
+        ↓
+Store / Branch Configuration
+        ↓
+Business Operations
+        ↓
+Analytics
+        ↓
+AI Intelligence
+```
+
+Buzzsynx follows these primary architectural principles:
+
+* Multi-tenant SaaS
 * Modular monolith
 * Domain-oriented backend modules
-* API-based communication
-* PostgreSQL as the primary database
-* Redis for caching and temporary data
-* BullMQ for background processing
-* Docker-based development and deployment
-* CI/CD through GitHub Actions
-* AWS-based production infrastructure
-* Centralized logging and monitoring
+* Shared business core
 * Capability-based industry customization
+* Tenant and store-level data isolation
+* PostgreSQL as the transactional source of truth
+* Redis for caching and temporary workloads
+* BullMQ for asynchronous processing
+* Deterministic business rules for critical operations
+* AI as an intelligence layer, not a transactional authority
+* Docker-based development and deployment
+* GitHub Actions for CI/CD
+* Progressive AWS deployment
+* Structured logging and observability
+* Progressive scalability without premature microservices
 
 ---
 
@@ -44,21 +75,75 @@ The architecture follows:
 The architecture must provide:
 
 1. Strong tenant isolation
-2. Clear separation of business domains
-3. Industry-specific customization without duplicating the application
-4. Maintainable and scalable backend code
-5. Reliable transaction processing
-6. Secure authentication and authorization
-7. Background job processing
-8. Production-ready deployment
-9. Observability and error tracking
-10. Ability to evolve toward larger-scale infrastructure
-11. Easy addition of new industries
-12. Minimal unnecessary infrastructure complexity during early development
+2. Store / branch-level access control
+3. Clear separation of business domains
+4. Reliable transactional business operations
+5. Configurable industry capabilities
+6. Maintainable backend architecture
+7. Secure authentication and authorization
+8. Permission-based access control
+9. Reliable background processing
+10. Safe AI integration
+11. Production-oriented observability
+12. Repeatable deployment
+13. Progressive scalability
+14. Easy addition of future industries
+15. Minimal unnecessary infrastructure complexity
+16. A clear path toward future service extraction when justified
 
 ---
 
-# 3. High-Level Architecture
+# 3. Initial Product Scope
+
+Buzzsynx is architected as a multi-industry platform, but implementation must remain focused.
+
+### Initial complete implementation
+
+```text
+Supermarket / Grocery Retail
+```
+
+The initial product should establish the shared engine around:
+
+```text
+Products
+    ↓
+Purchasing
+    ↓
+Inventory
+    ↓
+POS
+    ↓
+Sales
+    ↓
+Payments
+    ↓
+Invoices
+    ↓
+Customers
+    ↓
+Analytics
+    ↓
+AI Insights
+```
+
+Future industries should reuse the same core wherever possible.
+
+For example:
+
+```text
+Common Product Engine
+        +
+Industry Capability
+        =
+Industry Experience
+```
+
+The architecture must not require separate applications for every industry.
+
+---
+
+# 4. High-Level Architecture
 
 ```text
                          INTERNET
@@ -66,7 +151,8 @@ The architecture must provide:
                             v
                     +---------------+
                     |   Cloudflare  |
-                    |   / DNS / CDN  |
+                    | DNS / CDN /   |
+                    | Edge Security  |
                     +-------+-------+
                             |
                             v
@@ -75,41 +161,50 @@ The architecture must provide:
                     | Reverse Proxy |
                     +-------+-------+
                             |
-                 +----------+----------+
-                 |                     |
-                 v                     v
-        +----------------+    +----------------+
-        |    Next.js     |    |  Express API  |
-        |    Frontend    |    |    Backend     |
-        +----------------+    +-------+--------+
-                                      |
-                         +------------+-------------+
-                         |            |             |
-                         v            v             v
-                  +-----------+  +---------+  +----------+
-                  | PostgreSQL|  |  Redis  |  | BullMQ   |
-                  |  Database |  |  Cache  |  |  Queues  |
-                  +-----------+  +---------+  +----------+
-                         |
-                         v
-                  Persistent Data
+              +-------------+-------------+
+              |                           |
+              v                           v
+       +--------------+           +----------------+
+       |   Next.js    |           |  Express API  |
+       |  Application |           |    Backend    |
+       +--------------+           +-------+--------+
+                                          |
+                    +---------------------+---------------------+
+                    |                     |                     |
+                    v                     v                     v
+             +-------------+       +-------------+       +-------------+
+             | PostgreSQL  |       |    Redis    |       |   BullMQ    |
+             | Transaction |       | Cache /     |       | Background  |
+             | Source      |       | Temporary   |       | Processing  |
+             | of Truth    |       | Data        |       |             |
+             +-------------+       +-------------+       +-------------+
+                    |
+                    v
+             Persistent Business Data
 ```
+
+The exact production infrastructure may evolve as the product grows.
+
+The architecture document defines the **logical architecture**, while AWS-specific infrastructure is documented separately.
 
 ---
 
-# 4. Application Architecture
+# 5. Application Architecture
 
-Buzzsynx will use a **modular monolith architecture**.
+Buzzsynx will use a:
 
-The application will initially run as a single backend application, but its internal business domains will be separated into independent modules.
+> **Multi-Tenant Modular Monolith**
+
+The backend is deployed initially as one application, but internally divided into well-defined business modules.
 
 ```text
 Express Backend
 │
-├── Authentication
+├── Auth
 ├── Tenants
-├── Users
-├── Roles & Permissions
+├── Stores / Branches
+├── Users / Memberships
+├── Roles / Permissions
 │
 ├── Products
 ├── Inventory
@@ -119,72 +214,157 @@ Express Backend
 ├── Sales
 ├── Customers
 ├── Payments
-├── Reports
+├── Invoices
+│
 ├── Analytics
-│
+├── Reports
 ├── Industry Capabilities
-│   ├── Pharmacy
-│   ├── Supermarket
-│   ├── Clothing
-│   └── Restaurant
-│
 ├── AI
 └── Notifications
 ```
 
-Each module owns its business logic and should communicate with other modules through defined service interfaces rather than directly accessing another module's internal implementation.
+Modules must have clear responsibilities and boundaries.
+
+A module should not directly manipulate another module's internal implementation.
+
+Cross-module operations should happen through defined application/service interfaces.
 
 ---
 
-# 5. Why Modular Monolith
+# 6. Why Modular Monolith
 
-Buzzsynx will not begin with microservices.
+Buzzsynx will **not begin as a microservices system**.
 
 A modular monolith provides:
 
 * Lower infrastructure complexity
 * Easier local development
-* Simpler deployment
-* Easier debugging
-* Lower operational cost
-* Strong internal domain separation
-* Ability to extract services later if required
+* Faster implementation
+* Simpler debugging
+* Lower operational overhead
+* Easier transactional consistency
+* Clear domain boundaries
+* Easier testing
+* A practical path toward future extraction
 
-The goal is to maintain **microservice-like boundaries inside a single deployable application**.
+The objective is:
 
-If a particular domain eventually requires independent scaling or deployment, it can be extracted into a separate service later.
+> **Strong modular boundaries inside a simple deployable architecture.**
+
+Microservices should only be introduced when there is a concrete requirement such as:
+
+* Independent scaling
+* Independent deployment
+* Resource isolation
+* Team ownership
+* Operational requirements
+* Specialized infrastructure requirements
+
+Microservices are therefore a **future architectural option**, not an initial requirement.
 
 ---
 
-# 6. Multi-Tenant Architecture
+# 7. Multi-Tenant Architecture
 
-Buzzsynx is fundamentally a multi-tenant system.
+Buzzsynx is fundamentally a multi-tenant SaaS platform.
+
+The primary hierarchy is:
+
+```text
+Super Admin
+     |
+     v
+Tenant / Business
+     |
+     v
+Store / Branch
+     |
+     v
+Users / Memberships
+     |
+     v
+Roles + Permissions
+```
 
 Example:
 
 ```text
-Buzzsynx
+Buzzsynx Platform
+
+├── Tenant A — ABC Supermarket
+│   ├── Store A
+│   │   ├── Owner
+│   │   ├── Manager
+│   │   ├── Cashier
+│   │   └── Store Staff
+│   │
+│   └── Store B
+│       ├── Manager
+│       ├── Cashier
+│       └── Store Staff
 │
-├── Tenant A
-│   └── Pharmacy
-│
-├── Tenant B
-│   └── Supermarket
-│
-├── Tenant C
-│   └── Clothing Store
-│
-└── Tenant D
-    └── Restaurant
+└── Tenant B — XYZ Supermarket
+    └── Store A
+        ├── Owner
+        ├── Accountant
+        └── Cashier
 ```
 
-The application is shared, but each tenant's business data must remain isolated.
+A tenant represents a business account.
+
+A store / branch represents a physical or operational location belonging to that tenant.
+
+The architecture supports both:
+
+* Single-store businesses
+* Multi-store businesses
+
+The MVP may initially create one store during onboarding, but the data model should support multiple stores from the beginning.
 
 ---
 
-# 7. Tenant Isolation
+# 8. Tenant Lifecycle
 
-Every tenant-owned database entity must be associated with a tenant.
+Tenant onboarding should not unnecessarily block a business from beginning its setup.
+
+Conceptually:
+
+```text
+Signup
+   ↓
+User Account
+   ↓
+Tenant Created
+   ↓
+Initial Store Created
+   ↓
+Business Configuration
+   ↓
+Capabilities Initialized
+   ↓
+Owner Access
+   ↓
+Dashboard
+```
+
+Platform administration may review, suspend or manage tenants independently.
+
+Possible tenant lifecycle states:
+
+```text
+PENDING
+ACTIVE
+SUSPENDED
+ARCHIVED
+```
+
+The platform's administrative controls should not be confused with normal tenant authorization.
+
+---
+
+# 9. Tenant Isolation
+
+Every tenant-owned entity must be associated with a tenant.
 
 Example:
 
@@ -197,27 +377,34 @@ Product
 └── ...
 ```
 
-The same principle applies to:
+Store-scoped entities may additionally contain:
 
-* Products
-* Inventory
-* Purchases
-* Sales
-* Customers
-* Suppliers
-* Payments
-* Reports
-* Industry-specific data
+```text
+storeId
+```
 
-Tenant isolation must be enforced primarily at the backend/database query layer.
+Example:
 
-The frontend must never be trusted to enforce tenant isolation.
+```text
+InventoryItem
+├── id
+├── tenantId
+├── storeId
+├── productId
+└── quantity
+```
+
+Tenant ownership and store scope must be enforced at the backend.
+
+The frontend must never be trusted to provide or enforce tenant boundaries.
+
+A client-supplied `tenantId` must never be treated as authoritative.
 
 ---
 
-# 8. Request Security Flow
+# 10. Request Security Flow
 
-Every authenticated tenant request should follow this conceptual flow:
+Authenticated business requests should conceptually follow:
 
 ```text
 HTTP Request
@@ -229,7 +416,13 @@ Authentication
 Tenant Resolution
      |
      v
-Authorization / RBAC
+Membership Verification
+     |
+     v
+Store Scope Resolution
+     |
+     v
+Permission / RBAC Check
      |
      v
 Capability Check
@@ -248,19 +441,78 @@ Repository / Prisma
      |
      v
 PostgreSQL
+     |
+     v
+Audit / Observability
 ```
 
-The backend must determine the authenticated user's tenant rather than trusting an arbitrary `tenantId` supplied by the client.
+The backend must derive the effective tenant and access scope from authenticated identity and membership data.
+
+The system must not trust arbitrary tenant or store identifiers supplied by clients.
 
 ---
 
-# 9. Core Business Architecture
+# 11. Roles and Permissions
+
+Buzzsynx will use **permission-based authorization** rather than relying only on role names.
+
+The initial supermarket / grocery role model is:
+
+```text
+Super Admin
+    ↓
+Platform-level administration
+
+Owner
+    ↓
+Tenant/business ownership
+
+Admin / Manager
+    ↓
+Operational management
+
+Cashier
+    ↓
+POS and permitted payment operations
+
+Accountant
+    ↓
+Financial and payment-related operations
+
+Store Staff
+    ↓
+Permitted store-level operational tasks
+```
+
+The exact permission matrix is defined separately in the authorization/security documentation.
+
+A role is a collection of permissions.
+
+Therefore:
+
+```text
+User
+   ↓
+Membership
+   ↓
+Role
+   ↓
+Permissions
+   ↓
+Allowed Actions
+```
+
+This allows future roles and customized permissions without redesigning the architecture.
+
+---
+
+# 12. Core Business Architecture
 
 Buzzsynx contains a shared business core.
 
 ```text
-Core Business Platform
-│
+Shared Business Core
+
 ├── Products
 ├── Inventory
 ├── Purchasing
@@ -270,30 +522,34 @@ Core Business Platform
 ├── Customers
 ├── Payments
 ├── Invoices
-├── Reports
-└── Analytics
+├── Analytics
+└── Reports
 ```
 
-These modules provide functionality shared across multiple industries.
+The core should contain reusable business functionality that applies across industries.
+
+Industry-specific behavior should extend the core instead of duplicating it.
 
 ---
 
-# 10. Industry Capability Architecture
+# 13. Industry Capability Architecture
 
-Industry-specific functionality will be implemented as configurable capabilities.
-
-The platform should not create a separate application for every industry.
-
-Instead:
+Industry functionality will be implemented through capabilities.
 
 ```text
-Common Core
+Shared Core
      |
-     +---- Industry
+     v
+Industry
      |
-     +---- Capabilities
+     v
+Available Capabilities
      |
-     +---- Tenant Configuration
+     v
+Tenant-Enabled Capabilities
+     |
+     v
+Application Experience
 ```
 
 Example:
@@ -301,73 +557,73 @@ Example:
 ### Pharmacy
 
 ```text
-Industry: PHARMACY
-
-Capabilities:
-- BARCODE
-- BATCH_TRACKING
-- EXPIRY_TRACKING
+BARCODE
+BATCH_TRACKING
+EXPIRY_TRACKING
 ```
 
 ### Clothing
 
 ```text
-Industry: CLOTHING
-
-Capabilities:
-- BARCODE
-- PRODUCT_VARIANTS
-- SIZE
-- COLOR
+BARCODE
+PRODUCT_VARIANTS
+SIZE
+COLOR
 ```
 
 ### Restaurant
 
 ```text
-Industry: RESTAURANT
-
-Capabilities:
-- TABLE_MANAGEMENT
-- RECIPE_MANAGEMENT
-- INGREDIENT_MANAGEMENT
-- KITCHEN_MANAGEMENT
+TABLE_MANAGEMENT
+RECIPE_MANAGEMENT
+INGREDIENT_MANAGEMENT
+KITCHEN_MANAGEMENT
 ```
 
-The capability system controls which functionality is available to a tenant.
-
----
-
-# 11. Industry Architecture
-
-Industry-specific modules extend the common business engine.
+### Supermarket / Grocery
 
 ```text
-                         BUZZSYNX
-                            |
-              +-------------+-------------+
-              |                           |
-         COMMON CORE              INDUSTRY CAPABILITIES
-              |                           |
-       +------+------+          +---------+---------+
-       |      |      |          |         |         |
-    Product  POS  Inventory   Pharmacy Clothing Restaurant
-       |      |      |          |         |         |
-       +------+------+          +---------+---------+
-              |
-              v
-          Analytics
-              |
-              v
-              AI
+BARCODE
+WEIGHT_BASED_PRODUCTS
+BULK_PRODUCTS
+STOCK_TRACKING
+POS
+PURCHASING
+SUPPLIER_MANAGEMENT
 ```
 
-Industry-specific logic must not unnecessarily duplicate common business logic.
-
-For example, a clothing business should use the same sales and inventory engine while adding size/color variants.
+These are examples of capabilities, not a requirement to implement every capability during MVP.
 
 ---
 
-# 12. Frontend Architecture
+# 14. Industry Capability Rules
+
+Industry capabilities must:
+
+1. Reuse the shared business core
+2. Avoid unnecessary duplication
+3. Be configurable
+4. Be tenant-aware
+5. Be permission-aware
+6. Be validated on the backend
+7. Have clear lifecycle states
+
+Possible lifecycle:
+
+```text
+AVAILABLE
+ENABLED
+DISABLED
+DEPRECATED
+```
+
+The backend must enforce capability availability.
+
+The frontend should reflect capability state but must never be the only enforcement layer.
+
+---
+
+# 15. Frontend Architecture
 
 The frontend will use:
 
@@ -382,8 +638,9 @@ Conceptual structure:
 
 ```text
 src/app/
-│
+
 ├── (marketing)/
+│
 ├── (auth)/
 │
 └── dashboard/
@@ -399,32 +656,50 @@ src/app/
     └── settings/
 ```
 
-The frontend should render tenant-specific functionality based on tenant configuration and enabled capabilities.
+The frontend should render functionality according to:
+
+```text
+Authenticated User
+       ↓
+Tenant
+       ↓
+Store Scope
+       ↓
+Permissions
+       ↓
+Enabled Capabilities
+```
+
+The frontend is responsible for user experience.
+
+The backend remains responsible for authorization and business rules.
 
 ---
 
-# 13. Backend Architecture
+# 16. Backend Architecture
 
 The backend will use:
 
 * Node.js
 * Express
-* Modular architecture
-* Prisma ORM
+* Prisma
 * PostgreSQL
+* Modular domain architecture
 
 Conceptual structure:
 
 ```text
 src/server/
-│
+
 ├── index.js
 │
 ├── modules/
 │   ├── auth/
 │   ├── tenants/
+│   ├── stores/
 │   ├── users/
 │   ├── roles/
+│   ├── permissions/
 │   ├── products/
 │   ├── inventory/
 │   ├── pos/
@@ -433,6 +708,7 @@ src/server/
 │   ├── suppliers/
 │   ├── customers/
 │   ├── payments/
+│   ├── invoices/
 │   ├── analytics/
 │   ├── reports/
 │   ├── industries/
@@ -444,9 +720,11 @@ src/server/
 └── queues/
 ```
 
+The exact implementation structure may evolve as modules become more mature.
+
 ---
 
-# 14. Module Internal Structure
+# 17. Module Internal Structure
 
 Business modules should follow a consistent structure where appropriate.
 
@@ -454,6 +732,7 @@ Example:
 
 ```text
 products/
+
 ├── product.controller.js
 ├── product.service.js
 ├── product.repository.js
@@ -462,39 +741,54 @@ products/
 └── product.constants.js
 ```
 
-Responsibilities:
-
 ### Controller
 
-Handles HTTP requests and responses.
+Handles:
+
+* HTTP request
+* HTTP response
+* Request context
+
+Controllers should remain thin.
 
 ### Service
 
-Contains business rules and application logic.
+Contains:
+
+* Business rules
+* Application logic
+* Cross-module orchestration
 
 ### Repository
 
-Handles database access.
+Handles:
+
+* Database queries
+* Persistence operations
 
 ### Validation
 
-Validates incoming data.
+Handles:
+
+* Input validation
+* Schema validation
 
 ### Routes
 
-Defines API endpoints.
+Defines:
 
-Business logic should not be placed directly inside controllers.
+* HTTP endpoints
+* Middleware composition
+
+Business rules should not be embedded directly inside controllers.
 
 ---
 
-# 15. Database Architecture
+# 18. Database Architecture
 
-PostgreSQL will be the primary transactional database.
+PostgreSQL is the **primary transactional database and authoritative source of truth**.
 
-Prisma will be used as the ORM and database access layer.
-
-Conceptual structure:
+Prisma is used as the primary ORM/database access layer.
 
 ```text
 Application
@@ -506,9 +800,24 @@ Prisma
 PostgreSQL
 ```
 
-The database will contain shared business entities and industry-specific entities.
+The database will contain:
 
-The detailed schema will be defined separately in:
+* Tenant data
+* Store data
+* Memberships
+* Products
+* Inventory
+* Purchases
+* Suppliers
+* Sales
+* Customers
+* Payments
+* Invoices
+* Industry-specific data
+* Audit-related records
+* Configuration
+
+Detailed schema decisions belong in:
 
 ```text
 docs/03-database-design.md
@@ -516,87 +825,187 @@ docs/03-database-design.md
 
 ---
 
-# 16. Inventory Architecture
+# 19. Inventory Architecture
 
-Inventory will be based on **stock movements**, not only a mutable quantity field.
+Inventory must be based on a **stock movement ledger**, not only a mutable quantity field.
 
 Example:
 
 ```text
-PURCHASE      +100
-SALE            -5
-RETURN          +2
-DAMAGE          -1
-ADJUSTMENT      -3
-------------------
-CURRENT STOCK   93
+PURCHASE       +100
+SALE             -5
+RETURN           +2
+DAMAGE           -1
+EXPIRY           -2
+ADJUSTMENT       -3
+--------------------
+CURRENT STOCK    91
 ```
 
 Stock movements provide:
 
 * Auditability
 * Historical tracking
-* Better reporting
-* Inventory reconciliation
-* AI data
+* Reconciliation
+* Reporting
+* Analytics
+* AI input
 * Future warehouse support
 
+The current stock representation may be maintained for efficient reads, but the underlying business movement history remains authoritative.
+
+PostgreSQL remains the source of truth.
+
 ---
 
-# 17. Transaction Architecture
+# 20. POS Transaction Architecture
 
-Critical business operations should be transactional.
+POS is a critical transactional workflow.
 
-Example:
+Conceptually:
 
 ```text
-POS Sale
-   |
-   +-- Create Sale
-   |
-   +-- Create Sale Items
-   |
-   +-- Create Payment
-   |
-   +-- Create Stock Movement
-   |
-   +-- Update Inventory
-   |
-   +-- Create Invoice
-   |
-   +-- Commit Transaction
+Product Search / Barcode
+        ↓
+Cart
+        ↓
+Stock Validation
+        ↓
+Price / Discount / Tax Calculation
+        ↓
+Payment
+        ↓
+Sale
+        ↓
+Inventory Movement
+        ↓
+Invoice
 ```
 
-If a critical operation fails, the related transactional operations should be rolled back where appropriate.
+Critical operations should execute within appropriate database transactions.
+
+For example:
+
+```text
+BEGIN TRANSACTION
+
+Create Sale
+Create Sale Items
+Record Payment
+Create Stock Movement
+Update Inventory State
+Create Invoice
+
+COMMIT
+```
+
+If a critical operation fails, the transaction should roll back where appropriate.
+
+AI, email, notifications, PDF generation and non-critical analytics must not block the core sale transaction.
 
 ---
 
-# 18. Redis Architecture
+# 21. Business Transaction Principle
 
-Redis will be introduced for workloads that benefit from fast temporary access.
+Buzzsynx must distinguish between:
 
-Potential uses:
+### Synchronous transactional work
+
+Examples:
+
+* Stock validation
+* Sale creation
+* Payment recording
+* Inventory movement
+* Invoice creation
+
+and:
+
+### Asynchronous work
+
+Examples:
+
+* AI analysis
+* Email
+* Notifications
+* Report generation
+* Derived analytics
+* Non-critical processing
+
+The principle is:
+
+> **Complete the business transaction first. Process non-critical work asynchronously.**
+
+---
+
+# 22. Redis Architecture
+
+Redis is a performance and temporary-state layer.
+
+Potential uses include:
 
 ```text
 Redis
+
 ├── Cache
 ├── Rate Limiting
 ├── Temporary Data
-├── Job Queue Support
-└── Future Distributed Coordination
+├── Session-related temporary state
+└── BullMQ Queue Infrastructure
 ```
 
-Redis must not be treated as the primary source of truth for transactional business data.
+Redis must not become the authoritative store for:
 
-PostgreSQL remains the authoritative data store.
+* Inventory
+* Sales
+* Payments
+* Invoices
+* Products
+* Customers
+* Purchases
+* Financial records
+* Tenant configuration
+* Permissions
+
+The principle is:
+
+> **PostgreSQL owns truth. Redis provides speed.**
 
 ---
 
-# 19. Background Job Architecture
+# 23. Caching Strategy
 
-BullMQ will be used for asynchronous processing.
+Caching will be introduced selectively.
+
+Potential cache candidates:
+
+* Tenant configuration
+* Store configuration
+* Product lookup data
+* Categories
+* Frequently accessed reference data
+* Dashboard aggregates
+* Read-heavy reports
+
+Cache keys must be tenant-aware.
 
 Example:
+
+```text
+tenant:{tenantId}:products:{productId}
+```
+
+Mutations must update the authoritative database first.
+
+Cache invalidation or refresh should happen after successful database changes.
+
+Transactional reads requiring current authoritative state should bypass stale cache where necessary.
+
+---
+
+# 24. Background Job Architecture
+
+BullMQ will be used for asynchronous and scheduled processing.
 
 ```text
 Business Event
@@ -604,84 +1013,144 @@ Business Event
       v
    BullMQ
       |
- +----+----+---------+
- |         |         |
- v         v         v
-Analytics  AI   Notifications
-Worker    Worker     Worker
+  +---+----------------+
+  |        |           |
+  v        v           v
+Analytics  AI      Notifications
+Worker     Worker     Worker
 ```
 
 Potential jobs:
 
 * AI analysis
+* AI summaries
 * Report generation
+* Email processing
 * Notifications
 * Scheduled reports
 * Analytics processing
-* Email processing
-* Future automation tasks
+* Cache maintenance
+* Future automation
+
+Jobs must be:
+
+* Tenant-aware
+* Idempotent where required
+* Retryable where appropriate
+* Observable
+* Protected against unauthorized execution
+
+Queue processing must never become the authoritative source for transactional business state.
 
 ---
 
-# 20. AI Architecture
+# 25. Event and Asynchronous Processing
 
-AI will operate on structured business information generated by the platform.
+Business events may trigger asynchronous processing.
+
+Example:
+
+```text
+SALE_CREATED
+     |
+     +----> Analytics
+     |
+     +----> Notifications
+     |
+     +----> AI Processing
+     |
+     +----> Cache Invalidation
+```
+
+Where reliable database-to-queue consistency becomes necessary, an outbox/event mechanism may be introduced.
+
+This should be implemented when the actual workflow requires it rather than adding unnecessary infrastructure prematurely.
+
+---
+
+# 26. AI Architecture
+
+AI is an **intelligence layer**, not a replacement for deterministic business logic.
+
+Core principle:
+
+> **The database knows what happened. The application enforces what is allowed. AI helps understand what happened and what might happen next.**
+
+Conceptually:
 
 ```text
 Business Data
-      |
-      v
-Data Processing
-      |
-      v
-Analytics / Features
-      |
-      v
-AI Engine
-      |
-      v
+      ↓
+Validated Data
+      ↓
+Analytics / Deterministic Signals
+      ↓
+AI Processing
+      ↓
 Business Insight
-      |
-      v
+      ↓
 Recommendation
-      |
-      v
-Automation / Notification
+      ↓
+Optional Notification / Human Action
 ```
 
-Potential capabilities:
+Potential capabilities include:
 
+* Low-stock insights
 * Demand forecasting
-* Dead-stock detection
 * Reorder recommendations
+* Dead-stock detection
 * Sales analysis
-* Inventory insights
+* Inventory intelligence
+* Expiry intelligence
 * Anomaly detection
 * Business summaries
-* Expiry-related intelligence
-
-AI should complement deterministic business rules rather than replace them.
-
----
-
-# 21. Caching Strategy
-
-Caching will be introduced selectively.
-
-Potential cache candidates:
-
-* Frequently accessed configuration
-* Tenant settings
-* Product/category data where appropriate
-* Dashboard aggregates
-* Read-heavy reports
-* Temporary session-related information
-
-Transactional operations such as stock updates and payments must always rely on the authoritative database.
+* Customer patterns
+* Operational recommendations
 
 ---
 
-# 22. API Architecture
+# 27. AI Safety Boundary
+
+AI must not directly control critical transactional state.
+
+AI must not independently become the authority for:
+
+* Inventory quantities
+* Payment totals
+* Tax calculations
+* Permissions
+* Financial records
+* Stock movements
+* Sale completion
+* User authorization
+
+Instead:
+
+```text
+Deterministic Business Logic
+          ↓
+Authoritative Result
+          ↓
+AI Interpretation / Recommendation
+```
+
+For example:
+
+```text
+Inventory Engine:
+"Current stock = 8"
+
+AI:
+"Based on recent sales, this product may require
+reordering soon."
+```
+
+The AI recommendation may be acted upon through a controlled application workflow.
+
+---
+
+# 28. API Architecture
 
 The backend will expose versioned APIs.
 
@@ -690,6 +1159,8 @@ Example:
 ```text
 /api/v1/auth
 /api/v1/tenants
+/api/v1/stores
+/api/v1/users
 /api/v1/products
 /api/v1/inventory
 /api/v1/purchases
@@ -697,12 +1168,13 @@ Example:
 /api/v1/pos
 /api/v1/customers
 /api/v1/payments
+/api/v1/invoices
 /api/v1/reports
 /api/v1/analytics
 /api/v1/ai
 ```
 
-API standards will be documented separately in:
+API standards, response structures, errors, pagination and validation rules are defined separately in:
 
 ```text
 docs/04-api-design.md
@@ -710,124 +1182,183 @@ docs/04-api-design.md
 
 ---
 
-# 23. Authentication & Authorization
+# 29. Authentication and Authorization
 
-Authentication verifies the identity of a user.
+Authentication verifies identity.
 
-Authorization determines what the authenticated user can access.
+Authorization determines what an authenticated user is allowed to do.
 
-Buzzsynx will support:
+The authorization model is:
 
 ```text
+User
+  ↓
+Membership
+  ↓
 Tenant
-   |
-   +── Users
-   |
-   +── Roles
-   |
-   +── Permissions
+  ↓
+Store Scope
+  ↓
+Role
+  ↓
+Permissions
+  ↓
+Capability
+  ↓
+Allowed Action
 ```
 
-Example roles may include:
+Authorization must be enforced server-side.
 
-```text
-OWNER
-ADMIN
-MANAGER
-STAFF
-CASHIER
-```
-
-Exact roles and permissions will be defined separately.
+Frontend visibility is a convenience layer and must not be considered a security boundary.
 
 ---
 
-# 24. Observability Architecture
+# 30. Observability Architecture
 
 Production systems must be observable.
 
-Buzzsynx will eventually provide:
+Buzzsynx will use:
 
 ```text
 Application
-   |
-   +── Structured Logs
-   |
-   +── Error Tracking
-   |
-   +── Metrics
-   |
-   +── Health Checks
-   |
-   +── Audit Logs
-   |
-   +── Infrastructure Monitoring
+    |
+    +── Structured Logs
+    |
+    +── Error Tracking
+    |
+    +── Metrics
+    |
+    +── Health Checks
+    |
+    +── Audit Logs
+    |
+    +── Infrastructure Monitoring
 ```
 
-Potential tools:
+Observability should cover:
 
+* API performance
+* Authentication failures
+* Authorization failures
+* Database performance
+* Redis health
+* Queue health
+* POS failures
+* Inventory failures
+* Payment failures
+* AI failures
+* Background job failures
+* Deployment health
+
+Potential tools include:
+
+* Pino / pino-http
 * Sentry
 * AWS CloudWatch
-* Application logs
-* Database monitoring
-* Infrastructure metrics
+* OpenTelemetry where justified
+
+Detailed observability requirements are defined in:
+
+```text
+docs/13-observability.md
+```
 
 ---
 
-# 25. Deployment Architecture
+# 31. Audit Logging
 
-Development:
+Technical logs and business audit records are different concerns.
+
+### Technical logs
+
+Answer:
+
+> What happened inside the system?
+
+### Audit records
+
+Answer:
+
+> Who performed which business action, and when?
+
+Examples:
+
+```text
+User updated product price
+User adjusted stock
+User cancelled invoice
+User changed permissions
+User created store
+User changed tenant settings
+```
+
+Audit records must respect tenant boundaries and must not expose sensitive information unnecessarily.
+
+---
+
+# 32. Deployment Architecture
+
+### Development
 
 ```text
 Developer
-   |
-   v
+    |
+    v
 Git
-   |
-   v
+    |
+    v
 Docker Compose
-   |
-   +── Next.js
-   +── Express
-   +── PostgreSQL
-   +── Redis
+    |
+    +── Next.js
+    +── Express
+    +── PostgreSQL
+    +── Redis
 ```
 
-Production will eventually use AWS infrastructure.
+The worker process may also run independently when background jobs are introduced.
 
-Conceptual production architecture:
+### Production
+
+Production will progressively move toward managed infrastructure.
+
+Conceptually:
 
 ```text
-                    Internet
-                       |
-                       v
-                  Cloudflare
-                       |
-                       v
-                     Nginx
-                   /       \
-                  /         \
-                 v           v
-             Next.js      Express
-                              |
-                  +-----------+-----------+
-                  |           |           |
-                  v           v           v
-                RDS       Redis       BullMQ
-             PostgreSQL
+Internet
+    |
+    v
+Cloudflare / DNS / CDN
+    |
+    v
+Load Balancer / Nginx
+    |
+    +-------------------+
+    |                   |
+    v                   v
+ Next.js             Express
+                         |
+              +----------+----------+
+              |          |          |
+              v          v          v
+          PostgreSQL   Redis      Workers
 ```
 
-The exact AWS architecture will be defined separately in:
+The exact AWS implementation is defined separately in:
 
 ```text
 docs/12-aws-infrastructure.md
 ```
 
+AWS infrastructure should not be over-specified in this document.
+
 ---
 
-# 26. CI/CD Architecture
+# 33. CI/CD Architecture
 
-The development pipeline will use GitHub Actions.
+GitHub Actions will provide the foundation for CI/CD.
+
+Conceptually:
 
 ```text
 Developer
@@ -853,38 +1384,41 @@ Docker Build
 Staging
     |
     v
-E2E Tests
+Validation / E2E
     |
     v
 Production
 ```
 
-Deployment automation will be introduced progressively.
+The exact pipeline will evolve progressively as testing and deployment infrastructure mature.
 
 ---
 
-# 27. Security Architecture
+# 34. Security Architecture
 
-Security is a cross-cutting concern.
+Security is a cross-cutting architectural concern.
 
 The system must address:
 
 * Authentication
 * Authorization
 * Tenant isolation
+* Store isolation
 * Input validation
 * Rate limiting
-* Secure secrets management
 * Password security
+* Session/token security
 * API security
 * Database security
+* Secrets management
 * File upload security
 * Payment security
 * Audit logging
 * Dependency security
 * Infrastructure security
+* Data protection
 
-Detailed requirements will be defined in:
+Detailed requirements are defined in:
 
 ```text
 docs/07-security.md
@@ -892,168 +1426,288 @@ docs/07-security.md
 
 ---
 
-# 28. Scalability Strategy
+# 35. Scalability Strategy
 
-Buzzsynx should scale progressively.
+Buzzsynx will scale progressively.
 
-### Stage 1
+### Stage 1 — Development / Initial Production
 
 ```text
-Single application
-Single PostgreSQL
-Single Redis
+Application
+PostgreSQL
+Redis
+Background Worker
 ```
 
-### Stage 2
+### Stage 2 — Growth
 
 ```text
-Horizontally scaled application
+Load Balancer
+     |
+Multiple Application Instances
+     |
 Managed PostgreSQL
 Managed Redis
-Load Balancer
+Dedicated Workers
 ```
 
-### Stage 3
+### Stage 3 — Higher Scale
 
-If required:
+Only when justified:
 
 ```text
-Dedicated workers
-Independent AI processing
-Read replicas
-Specialized services
-Event-driven components
+Read Replicas
+Dedicated AI Processing
+Specialized Workers
+Event-Driven Components
+Independent Services
 ```
 
-Microservices should only be introduced when there is a concrete operational or scaling requirement.
+The architecture should evolve based on measurable requirements rather than assumptions.
 
 ---
 
-# 29. Architectural Principles
+# 36. Failure Isolation
 
-The following principles apply throughout Buzzsynx development.
+Non-critical systems must not unnecessarily bring down critical business operations.
 
-### Principle 1 — Tenant isolation first
+For example:
 
-Every tenant must only access its own authorized data.
+```text
+AI Provider Down
+      ↓
+AI unavailable
+      ↓
+POS continues
+```
 
-### Principle 2 — Core before customization
+Similarly:
 
-Build the common business engine before implementing many industry-specific features.
+```text
+Email Provider Down
+      ↓
+Email delayed
+      ↓
+Sale remains completed
+```
 
-### Principle 3 — Capability over duplication
+And:
 
-Industries should extend the platform through capabilities rather than duplicate applications.
+```text
+Analytics Worker Down
+      ↓
+Analytics delayed
+      ↓
+Transactional database remains authoritative
+```
 
-### Principle 4 — Database is the source of truth
-
-Redis, AI outputs, caches, and derived analytics must not replace authoritative transactional data.
-
-### Principle 5 — Business logic belongs in services
-
-Controllers should remain thin.
-
-### Principle 6 — Transactions protect critical operations
-
-Sales, payments, stock updates, and other critical operations must maintain data consistency.
-
-### Principle 7 — Async work belongs in queues
-
-Long-running or non-critical background work should not block customer-facing requests.
-
-### Principle 8 — Security is not an afterthought
-
-Security requirements must be considered while designing every module.
-
-### Principle 9 — Observability is part of production
-
-Logs, errors, metrics, and auditability must be designed into the system.
-
-### Principle 10 — Don't over-engineer
-
-Architecture should solve today's real requirements while leaving room for future evolution.
+Critical transactional paths should be designed independently from optional intelligence and notification systems.
 
 ---
 
-# 30. Future Evolution
+# 37. Architectural Principles
 
-The initial Buzzsynx architecture is intentionally designed so that individual modules can evolve independently.
+### Principle 1 — Tenant Isolation First
 
-Possible future evolution:
+Every tenant must only access authorized tenant data.
 
-```text
-                    BUZZSYNX
-                       |
-              Modular Monolith
-                       |
-        +--------------+--------------+
-        |              |              |
-      Core           AI          Notifications
-        |
-        v
-   Future Services
-```
+### Principle 2 — Store Scope Matters
 
-If a module eventually becomes a candidate for extraction:
+Users must only access stores and resources permitted by their membership and permissions.
 
-```text
+### Principle 3 — Core Before Customization
+
+Build the shared business engine before expanding into many industries.
+
+### Principle 4 — Capability Over Duplication
+
+Industries extend the common platform through capabilities instead of separate applications.
+
+### Principle 5 — PostgreSQL Is the Source of Truth
+
+Transactional business data belongs in PostgreSQL.
+
+### Principle 6 — Deterministic Logic Controls Critical Operations
+
+Inventory, payments, taxes, permissions and transactional calculations must be deterministic and authoritative.
+
+### Principle 7 — AI Provides Intelligence
+
+AI interprets business information and provides recommendations; it does not become the authority for critical state.
+
+### Principle 8 — Controllers Stay Thin
+
+Business logic belongs in services/domain logic rather than HTTP controllers.
+
+### Principle 9 — Transactions Protect Critical Operations
+
+Critical operations must maintain data consistency through appropriate database transactions.
+
+### Principle 10 — Async Work Belongs in Queues
+
+Long-running or non-critical work should be processed asynchronously.
+
+### Principle 11 — Security Is a Cross-Cutting Concern
+
+Security must be considered at every architectural boundary.
+
+### Principle 12 — Observability Is Part of Production
+
+Logs, metrics, errors, health and auditability must be designed into the platform.
+
+### Principle 13 — Don't Over-Engineer
+
+Architecture should solve real requirements while preserving reasonable paths for future evolution.
+
+---
+
+# 38. Future Architectural Evolution
+
+The initial architecture is intentionally designed so that modules can evolve independently.
+
 Current:
 
-Express Monolith
- └── AI Module
-
-Future:
-
-Express Core
-     |
-     +---- AI Service
+```text
+Buzzsynx
+    |
+    v
+Modular Monolith
+    |
+    +── Core Modules
+    +── AI
+    +── Notifications
+    +── Workers
 ```
 
-Extraction should happen only when justified by:
+Potential future:
+
+```text
+Buzzsynx Core
+    |
+    +── AI Service
+    |
+    +── Notification Service
+    |
+    +── Analytics Processing
+    |
+    +── Other Specialized Services
+```
+
+Extraction should only occur when justified by:
 
 * Scaling requirements
 * Independent deployment requirements
-* Team ownership
 * Resource isolation
+* Team ownership
 * Operational requirements
+* Clear domain boundaries
+
+The existence of a module does not automatically justify making it a microservice.
 
 ---
 
-# 31. Architecture Decision Summary
+# 39. Architectural Boundaries
 
-| Decision             | Choice                                   |
-| -------------------- | ---------------------------------------- |
-| Application type     | Multi-tenant SaaS                        |
-| Backend architecture | Modular monolith                         |
-| Frontend             | Next.js                                  |
-| Backend              | Node.js + Express                        |
-| Database             | PostgreSQL                               |
-| ORM                  | Prisma                                   |
-| Cache                | Redis                                    |
-| Background jobs      | BullMQ                                   |
-| Containerization     | Docker                                   |
-| Reverse proxy        | Nginx                                    |
-| CI/CD                | GitHub Actions                           |
-| Cloud                | AWS                                      |
-| Monitoring           | Sentry + CloudWatch                      |
-| Tenant model         | Shared application with tenant isolation |
-| Industry model       | Capability-based                         |
-| Initial deployment   | Monolith                                 |
-| Future scaling       | Progressive evolution                    |
-
----
-
-# 32. Architecture Status
-
-This document defines the **initial architectural baseline** for Buzzsynx.
-
-Changes to major architectural decisions should be documented through Architecture Decision Records (ADRs).
-
-Major changes should not be made casually during implementation.
-
-Related documents:
+The following boundaries should remain clear:
 
 ```text
+Frontend
+    ↓
+API
+    ↓
+Application / Services
+    ↓
+Domain Modules
+    ↓
+Persistence
+    ↓
+PostgreSQL
+```
+
+Supporting infrastructure:
+
+```text
+Redis
+    → Cache / temporary state / queue infrastructure
+
+BullMQ
+    → Background processing
+
+AI
+    → Intelligence / recommendations
+
+Observability
+    → Logs / metrics / errors / audit
+
+Nginx / Cloudflare
+    → Traffic / edge / routing
+```
+
+No supporting infrastructure should silently become the authority for core business state.
+
+---
+
+# 40. Architecture Decision Summary
+
+| Decision              | Choice                                        |
+| --------------------- | --------------------------------------------- |
+| Product type          | Multi-tenant SaaS                             |
+| Initial industry      | Supermarket / Grocery                         |
+| Architecture          | Modular monolith                              |
+| Tenant model          | Shared application with tenant isolation      |
+| Business hierarchy    | Tenant → Store/Branch → Membership            |
+| Authorization         | RBAC + permissions + capability checks        |
+| Frontend              | Next.js + React                               |
+| Backend               | Node.js + Express                             |
+| ORM                   | Prisma                                        |
+| Database              | PostgreSQL                                    |
+| Cache                 | Redis                                         |
+| Background jobs       | BullMQ                                        |
+| Containerization      | Docker                                        |
+| Reverse proxy         | Nginx                                         |
+| Edge / CDN            | Cloudflare where applicable                   |
+| CI/CD                 | GitHub Actions                                |
+| Cloud target          | AWS                                           |
+| Logging               | Pino / structured logging                     |
+| Error tracking        | Sentry when introduced                        |
+| Monitoring            | CloudWatch / applicable observability tooling |
+| Industry model        | Capability-based                              |
+| Initial deployment    | Modular monolith                              |
+| AI model              | Intelligence / recommendation layer           |
+| Transaction authority | PostgreSQL + deterministic business logic     |
+| Future scaling        | Progressive evolution                         |
+| Microservices         | Only when justified                           |
+
+---
+
+# 41. Architecture Status
+
+This document defines the **architectural baseline for Buzzsynx**.
+
+It establishes the major decisions that should guide implementation.
+
+The architecture is intentionally:
+
+* Focused for the initial supermarket/grocery product
+* Generalizable for future industries
+* Multi-tenant
+* Store-aware
+* Modular
+* Transaction-safe
+* AI-ready
+* Production-oriented
+* Incrementally scalable
+
+Detailed implementation decisions belong in the relevant supporting documents.
+
+Major architectural changes should be documented through Architecture Decision Records (ADRs) rather than being introduced casually during implementation.
+
+---
+
+# 42. Related Documents
+
+```text
+00-project-overview.md
 01-architecture.md
 02-system-workflow.md
 03-database-design.md
@@ -1074,5 +1728,25 @@ Related documents:
 18-project-completion.md
 ```
 
-**Architecture baseline version:** `v0.1`
-**Status:** `Draft / Under Development`
+---
+
+# 43. Final Architectural Principle
+
+Buzzsynx should be built around one simple architectural philosophy:
+
+> **The database knows what happened.
+> The application enforces what is allowed.
+> AI helps understand what happened and what might happen next.**
+
+And the broader implementation philosophy is:
+
+> **Build the first brick properly, without trying to build the entire building on day one.**
+
+**Buzzsynx — First Brick, Not the Whole Building.**
+
+---
+
+**Architecture Baseline:** `v1.0`
+**Status:** `Approved Baseline for Development`
+**Initial Product Focus:** `Supermarket / Grocery Retail`
+**Architecture:** `Multi-Tenant Modular Monolith`
