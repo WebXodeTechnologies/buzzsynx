@@ -2,8 +2,9 @@
 
 **Document:** `docs/09-caching-and-queues.md`
 **Project:** Buzzsynx
-**Version:** 1.0
+**Version:** 0.2
 **Status:** Architecture Specification
+**Scope:** Architecture-aligned caching and asynchronous processing baseline
 
 ---
 
@@ -13,51 +14,68 @@ Buzzsynx uses Redis and BullMQ to improve:
 
 * Application performance
 * API responsiveness
-* Scalability
 * Background processing
 * Scheduled operations
 * AI processing
 * Notifications
+* Report generation
+* Analytics processing
 * Rate limiting
 * Temporary data handling
 
-The architecture must clearly distinguish between:
+The initial implementation is focused on the **supermarket/grocery business domain**.
+
+The caching and queue architecture is shared across the platform and must also support future industry capabilities without changing the fundamental data-consistency model.
+
+The most important separation is:
 
 ```text
 PostgreSQL → Source of Truth
-Redis      → Fast/temporary data layer
-BullMQ     → Background job processing
+
+Redis      → Cache / Temporary / Coordination Layer
+
+BullMQ     → Background Job Processing
 ```
 
-The most important principle is:
+The core principle is:
 
-> **Redis and queues improve the system; they do not replace the database or transactional business logic.**
+> **Redis and queues improve the system; they do not replace PostgreSQL or transactional business logic.**
 
 ---
 
 # 2. Core Architecture
 
 ```text
-                    BUZZSYNX
-                       │
-          ┌────────────┴────────────┐
-          │                         │
-          ▼                         ▼
-     PostgreSQL                   Redis
-     Source of Truth           Cache / Temp
-          │                         │
-          │                         │
-          └────────────┬────────────┘
-                       │
-                       ▼
-                    BullMQ
-                       │
-              Background Workers
-                       │
-       ┌───────────────┼───────────────┐
-       ▼               ▼               ▼
-      AI           Notifications     Reports
+                         BUZZSYNX
+                            │
+             ┌──────────────┴──────────────┐
+             │                             │
+             ▼                             ▼
+        PostgreSQL                       Redis
+      Source of Truth            Cache / Temporary / Limits
+             │                             │
+             │                             │
+             └──────────────┬──────────────┘
+                            │
+                            ▼
+                          BullMQ
+                            │
+                     Background Workers
+                            │
+          ┌─────────────────┼─────────────────┐
+          ▼                 ▼                 ▼
+         AI            Notifications       Reports
+                            │
+                            ▼
+                       Analytics /
+                       Maintenance
 ```
+
+PostgreSQL owns business truth.
+
+Redis provides speed and temporary infrastructure capabilities.
+
+BullMQ provides asynchronous execution.
 
 ---
 
@@ -65,101 +83,143 @@ The most important principle is:
 
 ## PostgreSQL
 
-Responsible for:
+PostgreSQL is responsible for authoritative business data, including:
 
+* Tenants
+* Stores
+* Users
+* Memberships
+* Roles and permissions
 * Products
+* Categories
+* Suppliers
+* Purchases
 * Inventory
 * Stock movements
 * Sales
 * Payments
-* Customers
-* Suppliers
-* Users
-* Tenants
-* Roles
-* Permissions
 * Invoices
+* Customers
+* Business configuration
 * Audit records
-* AI insights
-* Business transactions
+* AI insight records where persistence is required
+* Other transactional business records
+
+PostgreSQL is the final authority when cached or derived data conflicts with database state.
 
 ---
 
 ## Redis
 
-Responsible for:
+Redis may be used for:
 
 * Cache
 * Rate limiting
-* Temporary state
-* Short-lived sessions where applicable
-* Distributed locks where required
-* Queue infrastructure
+* Short-lived temporary state
+* Distributed coordination where required
+* Queue infrastructure for BullMQ
 * Frequently accessed derived data
+* Short-lived session data **only if the selected authentication architecture requires it**
+
+Redis must not become the source of truth for business transactions.
 
 ---
 
 ## BullMQ
 
-Responsible for:
+BullMQ is responsible for:
 
 * Background jobs
 * Scheduled jobs
 * Retryable jobs
 * AI processing
 * Notifications
+* Emails
 * Reports
 * Analytics processing
-* Emails
 * Maintenance tasks
+* Other workloads that do not need to block the request
+
+BullMQ uses Redis as its underlying queue infrastructure.
 
 ---
 
-# 4. What Must NOT Be Stored Only in Redis
+# 4. Source-of-Truth Rule
 
-Redis must never become the only source of truth for:
+The architecture follows:
+
+```text
+PostgreSQL
+     ↓
+Authoritative Business State
+
+Redis
+     ↓
+Derived / Temporary / Cached State
+
+BullMQ
+     ↓
+Asynchronous Work
+```
+
+If Redis disagrees with PostgreSQL:
+
+> **PostgreSQL wins.**
+
+If a background job fails:
+
+> **The core business transaction remains authoritative.**
+
+---
+
+# 5. What Must NOT Exist Only in Redis
+
+Redis must never be the only source of truth for:
 
 ```text
 Inventory quantity
+Stock movements
 Sales
 Payments
 Invoices
-Customers
 Products
-Purchase records
-Stock movements
+Purchases
+Customers
 Tenant configuration
-User permissions
+User memberships
+Permissions
 Financial records
+Audit records
 ```
 
-If Redis is unavailable, these business records must remain safe in PostgreSQL.
+If Redis becomes unavailable, these records must remain safely stored in PostgreSQL.
 
 ---
 
-# 5. Cache-Aside Pattern
+# 6. Cache-Aside Pattern
 
 Buzzsynx should primarily use the cache-aside pattern.
 
-Flow:
-
 ```text
 Application
-     ↓
+     │
+     ▼
 Check Redis
      │
-     ├── HIT → Return cached data
+     ├── HIT
+     │    ↓
+     │  Return Cached Data
      │
      └── MISS
-           ↓
-       PostgreSQL
-           ↓
-       Store in Redis
-           ↓
-       Return data
+          ↓
+      PostgreSQL
+          ↓
+      Store Result
+          ↓
+      Return Data
 ```
 
-Example:
+Conceptually:
 
 ```js
 const cached = await redis.get(key);
@@ -177,25 +237,36 @@ await redis.set(key, JSON.stringify(data), {
 return data;
 ```
 
-The exact implementation will be centralized in the Redis/cache infrastructure.
+The actual implementation should be centralized through the Redis/cache infrastructure rather than duplicating cache logic throughout business modules.
 
 ---
 
-# 6. Cache Key Design
+# 7. Cache Key Design
 
-Cache keys must be predictable and tenant-aware.
+Cache keys must be:
 
-Example:
+* Predictable
+* Scoped
+* Versionable where required
+* Collision-resistant
+* Appropriate to the data ownership level
+
+For tenant-scoped data:
 
 ```text
 tenant:{tenantId}:products:list
 tenant:{tenantId}:product:{productId}
-tenant:{tenantId}:inventory:summary
 tenant:{tenantId}:dashboard:summary
-tenant:{tenantId}:analytics:sales:{period}
 ```
 
-Avoid global keys for tenant-owned data.
+For store-scoped data:
+
+```text
+tenant:{tenantId}:store:{storeId}:inventory:summary
+tenant:{tenantId}:store:{storeId}:analytics:sales:{period}
+```
+
+Avoid unsafe global keys for tenant-owned data.
 
 Unsafe:
 
@@ -211,70 +282,148 @@ tenant:tenant_123:products:list
 
 ---
 
-# 7. Tenant Isolation in Redis
+# 8. Tenant and Store Isolation
 
-Redis must follow the same tenant isolation model as PostgreSQL.
+Redis must follow the same isolation model as PostgreSQL.
 
 Example:
 
 ```text
 Tenant A
-
-tenant:A:products:list
-tenant:A:inventory:summary
-tenant:A:dashboard:summary
+  ├── Store A1
+  └── Store A2
 ```
+
+Cache keys must reflect the actual ownership scope.
+
+For tenant-level data:
+
+```text
+tenant:A:products:list
+```
+
+For store-level data:
+
+```text
+tenant:A:store:A1:inventory:summary
+```
+
+A cache key must never allow data belonging to:
 
 ```text
 Tenant B
-
-tenant:B:products:list
-tenant:B:inventory:summary
-tenant:B:dashboard:summary
 ```
 
-Application code must never accidentally return Tenant B's cached data to Tenant A.
+or:
+
+```text
+Store A2
+```
+
+to be returned to an unauthorized request for:
+
+```text
+Store A1
+```
+
+Application authorization and scope validation remain mandatory even when cached data exists.
 
 ---
 
-# 8. Cache TTL
+# 9. Cache Scope Classification
 
-Every cache should have an intentional TTL.
+Before introducing a cache, determine its ownership.
+
+## Tenant-scoped
 
 Examples:
 
 ```text
-Product list          → short/medium TTL
-Dashboard summary     → short TTL
-Analytics             → medium TTL
-Static configuration  → longer TTL
-AI insight            → feature-specific TTL
-Rate limits           → short TTL
+Product catalog
+Categories
+Brands
+Tenant configuration
 ```
 
-TTL should be selected according to how quickly the underlying data can change.
+## Store-scoped
 
-Never cache business data indefinitely without an explicit invalidation strategy.
+Examples:
+
+```text
+Stock summary
+Store sales summary
+Store inventory dashboard
+Store-specific pricing
+Store analytics
+```
+
+## User-scoped
+
+Examples:
+
+```text
+Temporary UI preferences
+Short-lived user-specific state
+```
+
+## System-scoped
+
+Examples:
+
+```text
+Non-sensitive application configuration
+Infrastructure metadata
+```
+
+The scope determines the cache-key structure.
 
 ---
 
-# 9. Cache Invalidation
+# 10. Cache TTL
 
-Cache invalidation is one of the most important parts of the caching architecture.
+Every cache should have an intentional TTL.
+
+Typical examples:
+
+```text
+Product reference data       → Short / Medium
+Dashboard summaries          → Short
+Analytics summaries          → Medium
+Static configuration         → Longer
+AI insights                  → Feature-specific
+Rate-limit counters          → Short
+Temporary verification data → Very short
+```
+
+TTL should depend on:
+
+* Data volatility
+* Business importance
+* Query cost
+* Acceptable staleness
+* Invalidation strategy
+
+Do not cache business data indefinitely without a clear reason.
+
+---
+
+# 11. Cache Invalidation
+
+Cache invalidation should be tied to the business event that changes the underlying data.
 
 Example:
 
 ```text
 Product Updated
       ↓
-Database Updated
+PostgreSQL Transaction
       ↓
-Invalidate Product Cache
+COMMIT
       ↓
-Invalidate Related Lists
+Invalidate / Refresh Relevant Cache
 ```
 
-For example:
+Example affected keys:
 
 ```text
 tenant:A:product:123
@@ -282,110 +431,187 @@ tenant:A:products:list
 tenant:A:dashboard:summary
 ```
 
-may need invalidation after a product change.
+Only invalidate caches that are actually affected.
+
+Avoid indiscriminately deleting large portions of the cache after every mutation.
 
 ---
 
-# 10. Database First
+# 12. Database First for Mutations
 
-For important mutations:
+Critical mutations must write to PostgreSQL first.
+
+Preferred:
 
 ```text
 Application
      ↓
 PostgreSQL Transaction
      ↓
-Commit
+COMMIT
      ↓
-Cache Invalidation
+Cache Invalidation / Refresh
 ```
 
-Do not make Redis the first authority for critical business mutations.
+Never:
+
+```text
+Application
+     ↓
+Redis
+     ↓
+PostgreSQL
+```
+
+as the authoritative transaction pattern.
 
 Example:
 
 ```text
 Sale Created
      ↓
-PostgreSQL transaction
+PostgreSQL Transaction
      ↓
-Commit
+COMMIT
      ↓
 Invalidate affected cache
 ```
 
 ---
 
-# 11. Cache Failure Strategy
+# 13. Cache Invalidation Failure
 
-Redis should be considered a performance dependency, not a business-data dependency.
-
-If Redis fails:
-
-```text
-Redis unavailable
-      ↓
-Application continues
-      ↓
-Read from PostgreSQL
-```
-
-For rate limiting or other Redis-dependent security features, the failure behavior should be explicitly defined rather than accidentally bypassing protection.
-
----
-
-# 12. Avoid Cache Stampede
-
-If a popular cache expires and hundreds of requests simultaneously query PostgreSQL, the database can become overloaded.
-
-Possible controls:
-
-* Request coalescing
-* Short randomized TTLs
-* Distributed locks
-* Background refresh
-* Stale-while-revalidate
+A cache invalidation failure must not roll back an already committed business transaction.
 
 Example:
 
 ```text
-Cache expires
-     ↓
-One request refreshes
-     ↓
-Other requests wait/use stale value
+PostgreSQL Transaction
+        ↓
+COMMIT SUCCESS
+        ↓
+Redis Invalidation
+        ↓
+FAILURE
 ```
+
+The sale remains valid.
+
+The system should:
+
+* Log the failure
+* Rebuild or invalidate later
+* Use TTL as a secondary protection
+* Optionally enqueue cache-refresh work where justified
+
+This reinforces the rule:
+
+> **Cache consistency is secondary to database correctness.**
 
 ---
 
-# 13. Cache What Makes Sense
+# 14. Redis Failure Strategy
 
-Good cache candidates:
+Redis failure must be handled according to its specific purpose.
+
+## Cache Failure
+
+Where safe:
 
 ```text
-Product catalog
+Redis unavailable
+      ↓
+Read PostgreSQL
+```
+
+The application may become slower but remains functionally correct.
+
+## Rate-Limit Failure
+
+The application must have an explicitly defined policy.
+
+For high-risk authentication endpoints, silently disabling rate limiting may be unsafe.
+
+Possible policy:
+
+```text
+Fail closed
+or
+Use secondary protection
+or
+Apply conservative fallback limits
+```
+
+The decision should be made per endpoint risk.
+
+## Queue Infrastructure Failure
+
+New background jobs may fail to enqueue.
+
+Critical workflows should use a reliable event-delivery strategy where required, such as a transactional outbox.
+
+---
+
+# 15. Cache Stampede Protection
+
+If a popular cache expires, many requests may simultaneously query PostgreSQL.
+
+Potential controls:
+
+* Request coalescing
+* Background refresh
+* Stale-while-revalidate
+* Randomized TTL
+* Short-lived locks where appropriate
+
+Example:
+
+```text
+Cache Expires
+      ↓
+One Request Refreshes
+      ↓
+Other Requests Reuse Existing / Stale Value
+```
+
+Do not introduce distributed locking everywhere.
+
+Use it only when there is a measurable concurrency problem.
+
+---
+
+# 16. What Should Be Cached?
+
+Good candidates:
+
+```text
+Product reference data
 Categories
+Brands
 Tenant configuration
 Dashboard summaries
 Analytics summaries
-Frequently accessed reports
 AI insights
-Read-heavy reference data
+Frequently accessed read-heavy data
 ```
 
-Poor cache candidates:
+Potentially poor candidates:
 
 ```text
 Payment state as source of truth
-Inventory as source of truth
+Inventory balance as source of truth
 Financial transactions
 Audit records
 Critical authorization state without careful invalidation
 ```
 
+Caching is an optimization, not a replacement for authoritative reads.
+
 ---
 
-# 14. Product Cache
+# 17. Product Cache
+
+Product lookup is a good candidate for caching because POS may perform frequent reads.
 
 Example:
 
@@ -393,17 +619,25 @@ Example:
 tenant:{tenantId}:product:{productId}
 ```
 
-Useful for:
+Potential cached fields:
 
-* Product details
-* POS product lookup
-* Frequently accessed product information
+```text
+Product ID
+SKU
+Barcode
+Name
+Category
+Display information
+Applicable pricing reference
+```
 
-The cache must be invalidated when relevant product data changes.
+The exact cache content should remain small and useful.
+
+Product cache must be invalidated when relevant product data changes.
 
 ---
 
-# 15. POS Caching
+# 18. POS Caching
 
 POS requires low latency.
 
@@ -413,7 +647,8 @@ Potential cache candidates:
 Product lookup
 Barcode lookup
 Category lookup
-Pricing configuration
+Read-heavy product information
+Store pricing configuration
 ```
 
 Example:
@@ -423,180 +658,223 @@ Barcode
    ↓
 Redis
    ↓
-Product ID
+Product ID / Product Reference
 ```
 
-However, final sale validation must still use authoritative database state.
+However:
+
+> **POS caching must never bypass authoritative transaction validation.**
 
 ---
 
-# 16. POS and Inventory Rule
+# 19. POS Inventory Rule
 
-A cached stock value must never be trusted as the final authority during a critical sale.
+A cached stock value must never be treated as the final authority during checkout.
 
 Example:
 
 ```text
-Redis says:
+Redis:
 Stock = 10
 ```
 
-But PostgreSQL may now contain:
+PostgreSQL may now contain:
 
 ```text
 Stock = 2
 ```
 
-The transactional sale process must validate authoritative inventory state.
+The sale transaction must validate the authoritative inventory state using PostgreSQL transaction logic and appropriate concurrency control.
 
 Therefore:
 
-> **Cache can accelerate lookup; database transactions enforce correctness.**
+> **Cache accelerates lookup; the database transaction enforces correctness.**
 
 ---
 
-# 17. Dashboard Caching
+# 20. POS Price and Tax Rule
 
-Dashboard data is often expensive to calculate.
+Cached pricing or tax configuration may improve lookup performance.
 
-Instead of repeatedly executing:
+However, the final sale calculation must be performed by the authoritative application service using current valid configuration.
 
-```text
-Sales aggregation
-+
-Inventory aggregation
-+
-Customer aggregation
-+
-Purchase aggregation
-```
-
-the system can cache a summary.
-
-Example:
+The server must calculate:
 
 ```text
-tenant:{tenantId}:dashboard:summary
+Price
+Discount
+Tax
+Totals
+Payment Allocation
 ```
 
-The cache can be refreshed after relevant events or periodically.
+The frontend must not be the final authority for these values.
 
 ---
 
-# 18. Analytics Caching
+# 21. Dashboard Caching
 
-Analytics queries can become expensive as tenant data grows.
+Dashboard queries may combine:
 
-Use:
+```text
+Sales
+Inventory
+Purchasing
+Customers
+Payments
+```
+
+Repeated aggregation can become expensive.
+
+A cached summary may therefore be used:
+
+```text
+tenant:{tenantId}:store:{storeId}:dashboard:summary
+```
+
+The summary can be:
+
+* Invalidated after relevant events
+* Refreshed periodically
+* Rebuilt on cache miss
+
+The exact strategy depends on query cost and data freshness requirements.
+
+---
+
+# 22. Analytics Caching
+
+Analytics may become increasingly expensive as tenant data grows.
+
+Typical flow:
 
 ```text
 PostgreSQL
-    ↓
+     ↓
 Aggregation
-    ↓
-Cached Result
-    ↓
+     ↓
+Derived Result
+     ↓
+Redis Cache
+     ↓
 Dashboard
 ```
 
-Example:
+For larger workloads, consider:
 
-```text
-tenant:{tenantId}:analytics:sales:monthly
-```
+* Precomputed analytics tables
+* Materialized views
+* Incremental aggregation
+* Appropriate database indexes
 
-For larger workloads, precomputed analytics tables/materialized views may be more appropriate than relying only on Redis.
+Redis alone should not be used to solve an inefficient analytical query.
 
 ---
 
-# 19. AI Caching
+# 23. AI Caching
 
 AI results can be expensive to generate.
 
-Cache appropriate results.
+Appropriate results may be cached or persisted.
 
 Example:
 
 ```text
-tenant:{tenantId}:ai:sales-summary:2026-09-25
+tenant:{tenantId}:store:{storeId}:ai:sales-summary:2026-09-25
 ```
 
-However, AI results can become stale.
-
-Therefore store:
+AI results should include freshness metadata such as:
 
 ```text
 generatedAt
 expiresAt
+sourcePeriod
 ```
 
-or equivalent freshness metadata.
+Cached AI output must not be treated as current business truth.
 
 ---
 
-# 20. AI Cache Strategy
+# 24. AI Cache Strategy
 
 Example:
 
 ```text
-User requests insight
+User Requests Insight
         ↓
-Check Redis
+Check Cache / Persisted Insight
         │
-        ├── Fresh → Return
+        ├── Fresh
+        │     ↓
+        │   Return Result
         │
-        └── Missing/Stale
-                 ↓
-             Queue Job
-                 ↓
-             AI Worker
-                 ↓
-             Generate
-                 ↓
-             Store Result
-                 ↓
+        └── Missing / Stale
+                ↓
+            Queue Job
+                ↓
+            AI Worker
+                ↓
+          Generate Result
+                ↓
+          Validate Output
+                ↓
+          Persist Result
+                ↓
              Cache
 ```
 
-This avoids making every user request wait for an AI provider.
+Where immediate generation is unnecessary, asynchronous processing is preferred.
 
 ---
 
-# 21. Rate Limiting
+# 25. Rate Limiting
 
 Redis is suitable for distributed rate limiting.
 
-Example:
-
-```text
-rate-limit:{userId}:{endpoint}
-```
-
-Tenant-aware example:
+Authenticated example:
 
 ```text
 rate-limit:{tenantId}:{userId}:{endpoint}
 ```
 
-For public endpoints:
+User-specific example:
+
+```text
+rate-limit:{userId}:{endpoint}
+```
+
+Public endpoint example:
 
 ```text
 rate-limit:ip:{ip}:{endpoint}
 ```
 
-The exact limits will be defined per endpoint and risk level.
+Unauthenticated requests cannot rely on `tenantId`.
+
+Rate-limit strategy should consider:
+
+* IP
+* User
+* Tenant
+* Endpoint
+* Authentication state
+* Risk level
+* Usage policy
+
+Avoid storing raw IP information longer than operationally necessary.
 
 ---
 
-# 22. Temporary Data
+# 26. Temporary Data
 
-Redis can store short-lived data such as:
+Redis may store short-lived information such as:
 
 ```text
-OTP state
-Password-reset state
-Temporary verification state
 Rate-limit counters
+OTP state
+Temporary verification state
+Short-lived tokens where architecture requires
+Temporary coordination state
 Short-lived UI/session state where appropriate
 ```
 
@@ -604,48 +882,52 @@ Sensitive temporary data must have:
 
 * Short TTL
 * Restricted access
-* Secure key naming
+* Safe key naming
+* Minimal payload
 * No unnecessary logging
 
+Authentication/session storage must follow the final authentication architecture rather than being assumed to use Redis.
+
 ---
 
-# 23. Distributed Locks
+# 27. Distributed Locks
 
-Redis can provide distributed locking for selected operations.
+Redis locks may be useful for selected coordination problems.
 
-Potential use cases:
+Potential examples:
 
 ```text
-Scheduled AI generation
 Duplicate report generation
+Scheduled AI generation
 Certain maintenance jobs
-Preventing duplicate processing
+Preventing duplicate non-transactional processing
 ```
 
-Locks must have:
+Locks should have:
 
-* Expiration
 * Unique ownership
-* Safe release behavior
+* Expiration
+* Safe release
+* Bounded duration
 
-Do not use Redis locks as a substitute for database transaction guarantees.
+Redis locks must not replace PostgreSQL transaction guarantees.
+
+For inventory correctness, use database transactions and appropriate concurrency control rather than relying on a Redis lock.
 
 ---
 
-# 24. BullMQ Architecture
+# 28. BullMQ Architecture
 
-BullMQ provides asynchronous processing.
-
-Architecture:
+BullMQ provides asynchronous job processing.
 
 ```text
 Application
      ↓
-Create Job
+Create Job / Event
+     ↓
+BullMQ
      ↓
 Redis
-     ↓
-BullMQ Queue
      ↓
 Worker
      ↓
@@ -654,34 +936,43 @@ Business Service
 PostgreSQL / External Provider
 ```
 
----
-
-# 25. Why Use Queues?
-
-Queues are useful when work:
+BullMQ is appropriate when work:
 
 * Takes significant time
 * Does not need to block the request
 * Can be retried
 * Is scheduled
 * Depends on external services
-* Can run independently
-
-Examples:
-
-```text
-AI processing
-Email
-Reports
-Notifications
-Analytics
-Image processing
-Scheduled tasks
-```
+* Can be processed independently
 
 ---
 
-# 26. Jobs That Should NOT Block POS
+# 29. Why Use Queues?
+
+Queues are useful for:
+
+```text
+AI processing
+Email delivery
+Notifications
+Report generation
+Analytics processing
+File processing
+Scheduled analysis
+Maintenance
+```
+
+Queues provide:
+
+* Asynchronous execution
+* Retry capability
+* Controlled concurrency
+* Backpressure
+* Failure isolation
+
+---
+
+# 30. Jobs That Must Not Block POS
 
 A POS transaction should not wait for:
 
@@ -689,30 +980,34 @@ A POS transaction should not wait for:
 AI analysis
 Email delivery
 Analytics processing
-PDF generation
+PDF rendering
 Notification delivery
+Non-critical report generation
 ```
 
-Instead:
+Preferred:
 
 ```text
-POS Transaction
-      ↓
-Complete critical DB transaction
-      ↓
-Queue background jobs
+POS Request
+     ↓
+Critical PostgreSQL Transaction
+     ↓
+COMMIT
+     ↓
+Async Processing
 ```
 
-This keeps checkout fast and reliable.
+The checkout path should remain focused on the minimum operations required to complete the sale correctly.
 
 ---
 
-# 27. Queue Categories
+# 31. Queue Categories
 
-Recommended initial queues:
+Initial queue categories:
 
 ```text
 queues/
+
 ├── ai
 ├── notifications
 ├── emails
@@ -721,15 +1016,17 @@ queues/
 └── maintenance
 ```
 
-Additional queues can be introduced when workload justifies them.
+These are logical categories.
 
-Avoid creating dozens of queues prematurely.
+The physical deployment can evolve later.
+
+Do not create dozens of independent queues before workload requires them.
 
 ---
 
-# 28. AI Queue
+# 32. AI Queue
 
-Jobs may include:
+Potential jobs:
 
 ```text
 GENERATE_SALES_SUMMARY
@@ -745,18 +1042,21 @@ Example:
 ```js
 {
   tenantId,
+  storeId,
   jobType: "GENERATE_DEMAND_FORECAST",
   payload: {
-    productId
+    productId: "product_123"
   }
 }
 ```
 
+`storeId` should be present whenever the analysis is store-specific.
+
 ---
 
-# 29. Notification Queue
+# 33. Notification Queue
 
-Jobs:
+Potential jobs:
 
 ```text
 LOW_STOCK_ALERT
@@ -766,7 +1066,7 @@ USER_INVITATION
 SYSTEM_ALERT
 ```
 
-Example:
+Flow:
 
 ```text
 Business Event
@@ -777,48 +1077,54 @@ BullMQ
       ↓
 Notification Worker
       ↓
-Email / Push / In-app
+Email / In-App / Other Provider
 ```
+
+Notification failure must not normally fail the originating business transaction.
 
 ---
 
-# 30. Email Queue
+# 34. Email Queue
 
 Email should generally be asynchronous.
 
 Examples:
 
 ```text
-Welcome email
-Password reset
-User invitation
-Invoice email
-Report delivery
-Payment confirmation
+Welcome Email
+Password Reset
+User Invitation
+Invoice Email
+Report Delivery
+Payment Confirmation
 ```
 
 Flow:
 
 ```text
 Application
-   ↓
-Queue Email Job
-   ↓
+    ↓
+Create Email Job
+    ↓
+BullMQ
+    ↓
 Email Worker
-   ↓
+    ↓
 Email Provider
 ```
 
+The email provider must not be called inside a critical PostgreSQL transaction.
+
 ---
 
-# 31. Report Queue
+# 35. Report Queue
 
-Large reports should not block API requests.
-
-Instead:
+Large reports should not block normal API requests.
 
 ```text
 User Requests Report
+       ↓
+Authorization
        ↓
 Create Report Job
        ↓
@@ -831,164 +1137,242 @@ Store File
 Notify User
 ```
 
-The frontend can poll or receive a notification when the report is ready.
+The report file must have appropriate tenant/store access controls.
 
 ---
 
-# 32. Scheduled Jobs
+# 36. Scheduled Jobs
 
-BullMQ can support recurring tasks such as:
+Scheduled processing may include:
 
 ```text
-Daily sales summary
-Daily low-stock analysis
-Expiry checks
-Weekly business report
-Monthly analytics
-AI forecast refresh
-Cleanup jobs
+Daily Sales Summary
+Low-Stock Analysis
+Expiry Checks
+AI Forecast Refresh
+Weekly Reports
+Monthly Analytics
+Cleanup Tasks
 ```
 
 Example:
 
 ```text
 Scheduler
-   ↓
-Daily 02:00
-   ↓
-Generate tenant jobs
-   ↓
-Workers process jobs
+    ↓
+Create Tenant/Store Jobs
+    ↓
+BullMQ
+    ↓
+Workers
 ```
+
+Scheduled jobs must not assume that all tenants share the same data scope.
 
 ---
 
-# 33. Tenant-Aware Jobs
+# 37. Tenant-Aware Jobs
 
-Every tenant-specific job must contain tenant identity.
+Tenant-specific jobs must carry sufficient scope.
 
 Example:
 
 ```js
 {
   tenantId: "tenant_123",
+  storeId: "store_01",
   type: "LOW_STOCK_ANALYSIS"
 }
 ```
 
-The worker must explicitly initialize tenant context before accessing data.
+The worker must validate the payload before processing.
+
+Tenant and store scope must be applied to all database queries.
 
 ---
 
-# 34. Worker Security
+# 38. Worker Security Model
 
-Workers must follow the same tenant isolation rules as APIs.
+Workers operate outside a normal HTTP request, but they are still part of the trusted application backend.
 
-Flow:
+A worker should:
 
 ```text
-Job
- ↓
-Validate Job Payload
- ↓
-Resolve Tenant
- ↓
-Tenant Context
- ↓
-Capability Check if required
- ↓
-Business Service
- ↓
-Tenant-scoped Database Access
+Receive Job
+    ↓
+Validate Payload
+    ↓
+Resolve Trusted Tenant / Store Context
+    ↓
+Apply Required Service-Level Authorization
+    ↓
+Execute Business Service
+    ↓
+Scoped Database Access
 ```
 
-Workers are not exempt from authorization architecture.
+A worker does not need to recreate a user's browser session or pretend every job is an interactive HTTP request.
+
+However:
+
+> **A job payload must never grant arbitrary access to another tenant.**
+
+The worker's service identity and job scope must be trusted and controlled by the backend.
 
 ---
 
-# 35. Job Idempotency
+# 39. Job Payload Design
 
-Jobs can be retried.
+Job payloads should contain only the information required for processing.
 
-Therefore, important jobs should be safe to run more than once where possible.
+Prefer:
 
-Example:
-
-```text
-Generate daily report
+```js
+{
+  tenantId,
+  storeId,
+  resourceId,
+  jobType
+}
 ```
 
-If executed twice, it should not:
+Avoid putting unnecessary:
 
 ```text
-Charge customer twice
-Send duplicate financial transaction
-Create duplicate invoice
+Passwords
+Access tokens
+Payment secrets
+Large customer records
+Full business datasets
 ```
 
-Use:
+into queue payloads.
+
+Where practical, workers should fetch current data from PostgreSQL using the scoped identifiers.
+
+This also prevents stale job payloads from becoming a second source of truth.
+
+---
+
+# 40. Job Idempotency
+
+Jobs may be retried or delivered more than once.
+
+Important jobs should therefore be idempotent where practical.
+
+For example:
+
+```text
+Generate Daily Report
+```
+
+should not create uncontrolled duplicate records every time it is retried.
+
+For financial or transactional workflows, use:
 
 * Idempotency keys
 * Unique database constraints
-* Job identifiers
+* Event IDs
 * Processing records
+* Transactional state checks
 
 where appropriate.
 
 ---
 
-# 36. Retry Strategy
+# 41. Critical API Idempotency
 
-Not every error should be retried.
+Idempotency is especially important for operations such as:
 
-### Retryable
+```text
+Sale creation
+Purchase receiving
+Returns
+Payment processing
+Webhook handling
+Important event processing
+```
+
+For example:
+
+```text
+Client Request
+     ↓
+Idempotency Key
+     ↓
+Business Transaction
+```
+
+A retried request should not accidentally create:
+
+```text
+Two sales
+Two payments
+Two stock movements
+Two refunds
+```
+
+when only one operation was intended.
+
+---
+
+# 42. Retry Strategy
+
+Not every failure should be retried.
+
+## Usually retryable
 
 ```text
 Temporary network failure
 Provider timeout
-Temporary Redis failure
+Temporary external API failure
 Transient database error
 External API rate limit
 ```
 
-### Usually non-retryable
+## Usually non-retryable
 
 ```text
 Invalid input
 Authorization failure
-Malformed permanent data
-Missing required resource
+Missing permanent resource
+Malformed business data
+Unsupported operation
 ```
+
+Retry decisions should be defined per job type.
 
 ---
 
-# 37. Exponential Backoff
+# 43. Exponential Backoff
 
 Retryable jobs should use controlled backoff.
 
-Conceptually:
-
 ```text
 Attempt 1
-   ↓
+    ↓
 Wait
-
+    ↓
 Attempt 2
-   ↓
-Longer wait
-
+    ↓
+Longer Wait
+    ↓
 Attempt 3
-   ↓
-Longer wait
 ```
 
-Avoid aggressive immediate retries that can overload dependencies.
+Avoid immediate repeated retries that can overload:
+
+* PostgreSQL
+* Redis
+* AI providers
+* Email providers
+* External APIs
 
 ---
 
-# 38. Dead-Letter / Failed Jobs
+# 44. Failed Jobs
 
-Jobs that repeatedly fail must become visible.
+Repeatedly failing jobs must become observable.
 
 Example:
 
@@ -1003,90 +1387,123 @@ Retry
  ↓
 Failed
  ↓
-Failed Job Storage / Monitoring
+Failed Job / Monitoring
 ```
 
-Operators should be able to inspect:
+Operators should be able to identify:
 
 * Job type
-* Tenant
+* Tenant/store scope where appropriate
 * Failure reason
-* Attempts
+* Attempt count
 * Timestamp
+* Request/event reference
 
 Sensitive payload data should not be unnecessarily exposed.
 
 ---
 
-# 39. Queue Priorities
+# 45. Dead-Letter Handling
 
-Not all jobs have equal urgency.
+A dead-letter or equivalent failed-job mechanism may be introduced when required.
 
-Potential priority model:
+It should support:
+
+* Inspection
+* Controlled retry
+* Failure analysis
+* Operational alerting
+
+Do not build an elaborate dead-letter system before there is a real operational need, but do not allow permanently failing jobs to disappear silently.
+
+---
+
+# 46. Queue Priorities
+
+Potential priority classes:
 
 ```text
 High
-  Critical notifications
+  Time-sensitive notifications
+  Important operational jobs
 
 Medium
   Standard business processing
 
 Low
-  AI analysis
   Historical analytics
   Large reports
+  Non-urgent AI analysis
 ```
 
-The exact queue strategy can evolve based on workload.
+Actual priority design should follow measured workload and business importance.
 
 ---
 
-# 40. Queue Concurrency
+# 47. Queue Concurrency
 
-Workers should limit concurrency based on workload.
+Workers must have controlled concurrency.
 
 Example:
 
 ```text
 AI Worker
-Concurrency: controlled
+Controlled concurrency
 
 Email Worker
-Concurrency: higher
+Higher concurrency where provider permits
 
 Report Worker
-Concurrency: controlled
+Controlled concurrency
+
+Analytics Worker
+Controlled concurrency
 ```
 
-Do not allow unlimited concurrent jobs to overwhelm:
+Unlimited concurrency can overwhelm:
 
-* PostgreSQL
-* Redis
-* AI providers
-* Email providers
-* External APIs
+```text
+PostgreSQL
+Redis
+AI Providers
+Email Providers
+External APIs
+```
+
+Concurrency should therefore be configurable.
 
 ---
 
-# 41. Backpressure
+# 48. Backpressure
 
-When demand increases:
+Queues provide a buffer when workload temporarily increases.
 
 ```text
 Requests
-   ↓
-Jobs increase
-   ↓
-Queue grows
+    ↓
+Jobs Increase
+    ↓
+Queue Grows
+    ↓
+Workers Process at Controlled Rate
 ```
 
-The system should allow workers to process jobs at a controlled rate.
+Monitor queue depth and processing latency.
 
-This is one of the major benefits of queues.
+If queues continuously grow, investigate:
+
+* Worker capacity
+* Database bottlenecks
+* Provider limits
+* Job design
+* Concurrency
+* Scheduling frequency
+
+Do not simply increase worker count without checking downstream capacity.
 
 ---
 
-# 42. Queue Observability
+# 49. Queue Observability
 
 Monitor:
 
@@ -1098,44 +1515,54 @@ Failure rate
 Retry count
 Worker health
 Stuck jobs
-Provider errors
+Provider failures
 ```
 
-These metrics should integrate with the observability architecture.
+Important job failures should generate appropriate operational alerts.
 
 ---
 
-# 43. Redis Memory Management
+# 50. Redis Memory Management
 
 Redis memory must be controlled.
 
 Use:
 
 * TTLs
-* Appropriate eviction policy
 * Bounded cache sizes
+* Appropriate eviction policy
 * Monitoring
 * Key naming conventions
+* Removal of obsolete cache entries
 
 Do not allow unlimited application-generated keys.
 
+BullMQ retention settings should also be controlled so completed and failed jobs do not grow indefinitely.
+
 ---
 
-# 44. Redis Key Naming Convention
+# 51. Redis Key Naming Convention
 
-Recommended:
+Recommended general pattern:
 
 ```text
-{scope}:{tenantId}:{domain}:{resource}:{identifier}
+{scope}:{tenantId}:{storeId}:{domain}:{resource}:{identifier}
 ```
+
+Only include scope components that are actually relevant.
 
 Examples:
 
 ```text
+tenant:A:products:list
+
 tenant:A:product:123
-tenant:A:inventory:summary
-tenant:A:analytics:sales:monthly
-tenant:A:ai:forecast:product-123
+
+tenant:A:store:A1:inventory:summary
+
+tenant:A:store:A1:analytics:sales:monthly
+
+tenant:A:store:A1:ai:forecast:product-123
 ```
 
 System-level keys:
@@ -1145,33 +1572,20 @@ system:health
 system:config
 ```
 
-Rate-limit keys:
+Rate limits:
 
 ```text
-rate-limit:A:user-123:login
+rate-limit:user:user-123:login
+rate-limit:ip:203.x.x.x:login
 ```
+
+The exact format can evolve, but naming must remain consistent.
 
 ---
 
-# 45. Cache Serialization
+# 52. Cache Versioning
 
-Cached objects should have a predictable serialization strategy.
-
-Prefer:
-
-```text
-JSON
-```
-
-for simple application data.
-
-Large or complex cached objects should be reviewed carefully to avoid unnecessary memory usage.
-
----
-
-# 46. Cache Versioning
-
-Cache formats may change as the application evolves.
+Cache formats may change as application code evolves.
 
 Use versioned keys when necessary.
 
@@ -1181,27 +1595,54 @@ Example:
 tenant:A:dashboard:v2
 ```
 
-This prevents incompatible old cached data from breaking new application code.
+This prevents incompatible cached structures from being interpreted by newer application code.
 
 ---
 
-# 47. Cache Security
+# 53. Cache Serialization
+
+Use a predictable serialization strategy.
+
+For simple application data:
+
+```text
+JSON
+```
+
+is generally sufficient.
+
+Avoid unnecessarily caching:
+
+* Huge objects
+* Entire database records
+* Large nested datasets
+* Data that can be cheaply queried
+
+Cache only what provides meaningful performance benefit.
+
+---
+
+# 54. Cache Security
 
 Do not store unnecessary secrets in Redis.
 
 If sensitive temporary information must be stored:
 
 * Use short TTLs
-* Restrict Redis access
+* Restrict Redis network access
+* Protect Redis credentials
 * Avoid logging values
-* Encrypt at the appropriate infrastructure layer
+* Minimize payload
 * Scope keys correctly
+* Apply infrastructure encryption where appropriate
+
+Redis should not be directly exposed to the public internet.
 
 ---
 
-# 48. PostgreSQL + Redis Consistency
+# 55. PostgreSQL + Redis Consistency
 
-The relationship should be:
+The relationship is:
 
 ```text
 PostgreSQL
@@ -1213,44 +1654,60 @@ Redis
 Derived / Cached State
 ```
 
-If there is disagreement:
-
-> PostgreSQL wins.
-
-The application should invalidate or rebuild stale Redis data.
-
----
-
-# 49. PostgreSQL + Queue Consistency
-
-A common problem:
+If they disagree:
 
 ```text
-Database transaction succeeds
-       ↓
-Queue job creation fails
+PostgreSQL wins.
 ```
 
-This can result in missed background processing.
+The application should:
 
-For important workflows, consider the **transactional outbox pattern**.
+* Invalidate stale cache
+* Rebuild cache
+* Continue from authoritative data
+
+Cache corruption must never become business-data corruption.
 
 ---
 
-# 50. Transactional Outbox
+# 56. PostgreSQL + Queue Consistency
+
+A common failure scenario is:
+
+```text
+Database Transaction
+      ↓
+COMMIT SUCCESS
+      ↓
+Queue Creation
+      ↓
+FAILURE
+```
+
+The business transaction succeeded, but asynchronous work was not scheduled.
+
+For important events, Buzzsynx should support the **transactional outbox pattern** where reliability requires it.
+
+---
+
+# 57. Transactional Outbox
 
 Conceptually:
 
 ```text
 Database Transaction
- ├── Business Record
- └── Outbox Event
-          ↓
-       COMMIT
-          ↓
-     Outbox Worker
-          ↓
-       BullMQ
+      │
+      ├── Business Record
+      │
+      └── Outbox Event
+              ↓
+            COMMIT
+              ↓
+        Outbox Worker
+              ↓
+           BullMQ
+              ↓
+          Background Job
 ```
 
 Example:
@@ -1258,94 +1715,124 @@ Example:
 ```text
 Sale Created
 +
-SALE_CREATED event
+SALE_CREATED Event
 ```
 
-are committed together.
+are committed atomically.
 
-A worker later publishes/processes the event.
+A worker can then publish/process the event after commit.
 
-This reduces the risk of losing important asynchronous work.
+This prevents important asynchronous work from being lost because queue submission happened outside the transaction.
 
 ---
 
-# 51. Event-Driven Processing
+# 58. Outbox Scope
 
-Buzzsynx can use business events to trigger background work.
+The outbox pattern should be used selectively.
+
+Good candidates:
+
+```text
+Sale-created downstream processing
+Payment state events
+Inventory-related notifications
+Important business notifications
+Critical integration events
+```
+
+It does not need to be used for every cache refresh or low-value background task.
+
+For simple non-critical cache refreshes, direct post-commit invalidation may be sufficient.
+
+---
+
+# 59. Event-Driven Processing
+
+Business events can trigger background work.
 
 Example:
 
 ```text
 SALE_CREATED
-     │
-     ├── Update analytics
-     ├── Queue notification
-     ├── Queue AI analysis
-     └── Update dashboard cache
+      │
+      ├── Analytics Processing
+      ├── Notification
+      ├── AI Analysis
+      └── Cache Refresh
 ```
 
 The core sale transaction remains deterministic.
 
+Background consumers must not modify authoritative business state without passing through the appropriate business service and transaction rules.
+
 ---
 
-# 52. Example — Sale Workflow
+# 60. Sale Workflow
+
+Preferred architecture:
 
 ```text
 Customer Checkout
        ↓
 POS
        ↓
-Validate Stock
+Validate Product / Price / Stock
        ↓
 PostgreSQL Transaction
        │
        ├── Sale
        ├── Sale Items
-       ├── Payment
+       ├── Payment Allocation
        ├── Stock Movement
-       └── Outbox Event
+       ├── Invoice Record
+       └── Outbox Event where required
        ↓
-     COMMIT
+COMMIT
        ↓
-Queue Processing
+Async Processing
        │
        ├── Analytics
        ├── Notifications
        ├── Cache Invalidation
+       ├── Invoice PDF
        └── AI Analysis
 ```
 
-This is the preferred architecture for asynchronous post-sale processing.
+External providers must not be called inside the critical PostgreSQL transaction.
 
 ---
 
-# 53. Example — Low Stock Alert
+# 61. Low-Stock Workflow
+
+Example:
 
 ```text
 Sale
  ↓
 Stock Updated
  ↓
+Transaction Commit
+ ↓
 Business Event
  ↓
 Queue
  ↓
-Low Stock Worker
+Low-Stock Worker
  ↓
-Check Threshold
+Evaluate Threshold
  ↓
-Create Alert
+Create Alert / Insight
  ↓
 Notification Queue
  ↓
-Email / In-app Notification
+Email / In-App Notification
 ```
 
-The alert does not need to block checkout.
+The alert must not block checkout.
 
 ---
 
-# 54. Example — AI Forecast
+# 62. AI Forecast Workflow
 
 ```text
 Scheduled Job
@@ -1354,13 +1841,13 @@ BullMQ
       ↓
 Forecast Worker
       ↓
-Tenant Context
+Tenant / Store Context
       ↓
 Fetch Historical Sales
       ↓
 Prepare Dataset
       ↓
-AI / Forecast Model
+Forecast / AI Processing
       ↓
 Validate Output
       ↓
@@ -1371,14 +1858,18 @@ Cache Result
 Dashboard
 ```
 
+AI processing remains independent of POS execution.
+
 ---
 
-# 55. Example — Report Generation
+# 63. Report Generation Workflow
 
 ```text
 User
  ↓
 Request Report
+ ↓
+Authentication
  ↓
 Authorization
  ↓
@@ -1390,124 +1881,196 @@ BullMQ
  ↓
 Report Worker
  ↓
-Query PostgreSQL
+Scoped PostgreSQL Query
  ↓
 Generate Report
  ↓
 Store File
  ↓
-Notification
+Notify User
+```
+
+Generated files must have tenant/store-aware access controls.
+
+---
+
+# 64. Notification Failure Isolation
+
+Example:
+
+```text
+Sale
+ ↓
+SUCCESS
+ ↓
+Notification Job
+ ↓
+Email Provider
+ ↓
+FAILURE
+```
+
+The sale remains successful.
+
+The notification job may retry independently.
+
+This principle applies to:
+
+```text
+Email
+AI
+Reports
+Analytics
+Non-critical notifications
 ```
 
 ---
 
-# 56. When NOT to Use a Queue
+# 65. When NOT to Use a Queue
 
-Do not queue operations that require an immediate response unless asynchronous behavior is acceptable.
+Do not queue operations that require immediate synchronous results unless the product explicitly supports asynchronous behavior.
 
 Examples:
 
 ```text
 Login
-Simple product lookup
+Product lookup
+Barcode lookup
 POS cart interaction
 Stock validation during checkout
-Payment confirmation validation
-Simple CRUD operations
+Payment verification
+Simple CRUD
+Authorization checks
 ```
 
 These should normally execute synchronously.
 
 ---
 
-# 57. When NOT to Use Redis
+# 66. When NOT to Use Redis
 
-Do not introduce Redis simply because the application has Redis available.
+Do not introduce caching merely because Redis is available.
 
-Avoid caching:
+Avoid caching when:
 
 ```text
-Rarely accessed data
-Highly volatile data with no performance benefit
-Critical state without invalidation strategy
-Large datasets that exceed reasonable memory budgets
+Data is rarely accessed
+Query is already inexpensive
+Data changes too frequently
+Staleness is unacceptable
+Invalidation is unnecessarily complex
+Memory cost exceeds performance benefit
 ```
 
-Every cache should have a clear reason.
+Every cache should have a measurable or architectural reason.
 
 ---
 
-# 58. Initial Queue Architecture
+# 67. Initial Queue Architecture
 
-For the first implementation:
+For the initial Buzzsynx implementation:
 
 ```text
 Redis
-  │
-  └── BullMQ
-       │
-       ├── ai
-       ├── notifications
-       ├── emails
-       ├── reports
-       ├── analytics
-       └── maintenance
+ │
+ └── BullMQ
+      │
+      ├── ai
+      ├── notifications
+      ├── emails
+      ├── reports
+      ├── analytics
+      └── maintenance
 ```
 
-Workers can initially run within the same deployment environment while maintaining clear module boundaries.
+Workers may initially run in the same deployment environment while maintaining clear module boundaries.
 
-They can later be separated into independent services if workload requires it.
+They can later be separated when workload, scaling, reliability, or operational requirements justify it.
 
 ---
 
-# 59. Future Scaling
+# 68. Initial Caching Scope
 
-Initial architecture:
-
-```text
-Application
-    │
-    ├── PostgreSQL
-    ├── Redis
-    └── Workers
-```
-
-Future architecture:
+The initial supermarket implementation should prioritize a small number of useful caches:
 
 ```text
-                    Load Balancer
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-         API Instances        Web Instances
-              │
-              ├──────── PostgreSQL
-              │
-              └──────── Redis
-                         │
-                       BullMQ
-                         │
-          ┌──────────────┼──────────────┐
-          ▼              ▼              ▼
-      AI Workers    Report Workers   Notification
-                                      Workers
+1. Product / barcode lookup
+2. Read-heavy reference data
+3. Dashboard summaries
+4. Analytics summaries where expensive
+5. AI insights
+6. Rate limiting
 ```
 
-The modular monolith can evolve without immediately becoming microservices.
+Do not attempt to cache every database query.
 
 ---
 
-# 60. Failure Scenarios
+# 69. Future Industry Support
 
-## Redis Down
+The caching and queue architecture is industry-agnostic.
+
+Future capabilities may introduce additional jobs such as:
+
+```text
+Pharmacy
+  Expiry analysis
+  Batch alerts
+
+Clothing
+  Variant analysis
+  Size demand analysis
+
+Restaurant
+  Ingredient analysis
+  Waste analysis
+```
+
+These should reuse the same:
+
+```text
+Redis
+BullMQ
+Tenant Scope
+Store Scope
+Worker Security
+Idempotency
+Observability
+```
+
+architecture.
+
+---
+
+# 70. Failure Scenarios
+
+## Redis Cache Down
 
 ```text
 Redis unavailable
       ↓
-Use PostgreSQL for cacheable reads
+Cache miss / bypass
+      ↓
+PostgreSQL
 ```
 
-Business operations should continue where possible.
+Where safe, business operations continue with potentially higher latency.
+
+---
+
+## Redis Rate-Limit Infrastructure Down
+
+Behavior depends on endpoint risk.
+
+```text
+Authentication endpoint
+      ↓
+Conservative protection / fail-closed policy
+```
+
+versus a low-risk internal cache operation that may simply bypass Redis.
+
+The policy must be explicit.
 
 ---
 
@@ -1518,187 +2081,337 @@ API continues
       ↓
 Jobs remain queued
       ↓
-Worker restarts
+Worker Restarts
       ↓
-Processing resumes
+Processing Resumes
 ```
+
+Job retention and retry configuration must support this behavior.
 
 ---
 
 ## AI Provider Down
 
 ```text
-AI job fails
-      ↓
+AI Job
+  ↓
+Timeout / Failure
+  ↓
 Retry
-      ↓
-If still failing
-      ↓
-Failed job
-      ↓
-Business system remains operational
+  ↓
+Failed Job if necessary
+  ↓
+Monitoring
 ```
+
+Core business operations continue.
 
 ---
 
 ## Email Provider Down
 
 ```text
-Email job
+Email Job
    ↓
 Retry
    ↓
-Queue remains available
-   ↓
-Business transaction unaffected
+Failed Job if necessary
 ```
 
+The originating business transaction remains unaffected.
+
 ---
 
-# 61. Security Requirements
+# 71. Security Requirements
 
-Redis and queues must follow the security architecture.
+## Redis
 
-### Redis
-
-* [ ] Protected network access
-* [ ] Authentication where applicable
-* [ ] Tenant-aware keys
-* [ ] Sensitive data minimization
+* [ ] Private network access
+* [ ] Authentication/configured access controls
+* [ ] Encryption where appropriate
+* [ ] Tenant/store-aware keys
+* [ ] Sensitive-data minimization
 * [ ] TTLs
+* [ ] Memory limits
 * [ ] No business source of truth
+* [ ] No public internet exposure
 
-### BullMQ
+## BullMQ
 
-* [ ] Tenant-aware jobs
-* [ ] Payload validation
-* [ ] Worker isolation
+* [ ] Protected Redis connection
+* [ ] Tenant/store-aware jobs
+* [ ] Job payload validation
+* [ ] Worker service authorization
 * [ ] Idempotency
 * [ ] Retry controls
+* [ ] Failure monitoring
 * [ ] Sensitive payload minimization
+* [ ] Controlled concurrency
 
 ---
 
-# 62. Testing Strategy
+# 72. Testing Strategy
+
+## Cache Tests
 
 Test:
 
-### Cache
-
 * Cache hit
 * Cache miss
+* Cache expiration
 * Cache invalidation
-* Expired cache
+* Cache rebuild
 * Redis unavailable
 * Tenant isolation
+* Store isolation
+* Cache-key correctness
+* Stale-data handling
 
-### Queue
+---
+
+## Queue Tests
+
+Test:
 
 * Job creation
+* Job validation
 * Job processing
-* Retry
-* Failure
+* Retry behavior
+* Failure behavior
 * Idempotency
 * Worker restart
+* Queue recovery
 * Tenant isolation
+* Store isolation
+* Concurrency limits
 
-### Integration
+---
+
+## Transaction / Event Tests
 
 Test:
 
 ```text
-Database
+Business Transaction
++
+Outbox Event
+```
+
+including:
+
+* Successful commit
+* Transaction rollback
+* Duplicate event
+* Worker retry
+* Event processing failure
+* Event recovery
+
+---
+
+## Integration Tests
+
+Test:
+
+```text
+PostgreSQL
 +
 Redis
 +
 BullMQ
 +
 Application
++
+Workers
 ```
+
+as an integrated system.
 
 ---
 
-# 63. Definition of Done
+# 73. Observability Requirements
 
-The caching and queue architecture is complete when:
+Monitor:
 
-* [ ] PostgreSQL remains source of truth
-* [ ] Redis responsibilities are clearly defined
-* [ ] Cache keys are tenant-aware
+```text
+Redis
+  Memory
+  Hit rate
+  Miss rate
+  Errors
+  Connection health
+
+BullMQ
+  Queue depth
+  Job latency
+  Processing rate
+  Failure rate
+  Retry count
+  Worker health
+
+Application
+  Cache errors
+  Queue errors
+  Event failures
+  Slow queries
+```
+
+Do not use tenant IDs as unnecessarily high-cardinality metric labels.
+
+Tenant/store context can instead be captured in structured logs and traces where appropriate.
+
+---
+
+# 74. Definition of Done
+
+The caching and queue architecture is ready when:
+
+* [ ] PostgreSQL is clearly defined as source of truth
+* [ ] Redis responsibilities are defined
+* [ ] BullMQ responsibilities are defined
+* [ ] Tenant-aware cache keys exist
+* [ ] Store-aware cache keys exist where required
 * [ ] TTL strategy exists
 * [ ] Cache invalidation strategy exists
 * [ ] Redis failure behavior is defined
-* [ ] BullMQ queues are defined
-* [ ] Workers are defined
-* [ ] Jobs contain tenant context
-* [ ] Jobs are validated
-* [ ] Retry strategy exists
+* [ ] Rate-limit failure behavior is defined
+* [ ] Initial queues are defined
+* [ ] Worker responsibilities are defined
+* [ ] Job payloads are validated
+* [ ] Tenant/store scope is enforced in workers
 * [ ] Idempotency strategy exists
+* [ ] Retry strategy exists
 * [ ] Failed jobs are observable
-* [ ] Critical workflows do not depend on AI/email/background jobs
-* [ ] Transactional outbox is considered for important events
-* [ ] Redis and queue security is tested
+* [ ] Worker concurrency is controlled
+* [ ] Critical workflows do not depend on background jobs
+* [ ] Transactional outbox is available for workflows that require reliable event delivery
+* [ ] Cache and queue security is tested
+* [ ] Redis memory usage is monitored
+* [ ] Queue health is monitored
+* [ ] Integration tests cover PostgreSQL + Redis + BullMQ
 
 ---
 
-# 64. Final Architecture
+# 75. Final Architecture
 
 Buzzsynx follows this separation:
 
 ```text
-                    BUSINESS SYSTEM
-                          │
-             ┌────────────┴────────────┐
-             │                         │
-             ▼                         ▼
-        PostgreSQL                   Redis
-       Source of Truth          Cache / Temporary
-             │                         │
-             │                         │
-             └────────────┬────────────┘
-                          │
-                          ▼
-                       BullMQ
-                          │
-                    Background Jobs
-                          │
-        ┌─────────────────┼─────────────────┐
-        ▼                 ▼                 ▼
-       AI            Notifications       Reports
-        │                 │                 │
-        └─────────────────┼─────────────────┘
-                          ▼
-                     Observability
+                         BUSINESS SYSTEM
+                                │
+                 ┌──────────────┴──────────────┐
+                 │                             │
+                 ▼                             ▼
+            PostgreSQL                       Redis
+          Source of Truth             Cache / Temporary
+                 │                   Rate Limits / Queue
+                 │                             │
+                 │                             │
+                 └──────────────┬──────────────┘
+                                │
+                                ▼
+                              BullMQ
+                                │
+                        Background Workers
+                                │
+             ┌──────────────────┼──────────────────┐
+             ▼                  ▼                  ▼
+            AI             Notifications         Reports
+             │                  │                  │
+             └──────────────────┼──────────────────┘
+                                ▼
+                         Analytics /
+                         Maintenance
+                                │
+                                ▼
+                         Observability
 ```
 
 ---
 
-# 65. Final Principle
+# 76. Core Architectural Boundaries
+
+Buzzsynx maintains these boundaries:
+
+```text
+PostgreSQL
+    ↓
+Business Truth
+
+Redis
+    ↓
+Performance / Temporary State
+
+BullMQ
+    ↓
+Asynchronous Execution
+
+Workers
+    ↓
+Scoped Backend Processing
+
+AI / External Providers
+    ↓
+Non-authoritative Intelligence / Integration
+```
+
+No supporting infrastructure should silently become a second business database.
+
+---
+
+# 77. Final Principle
 
 > **PostgreSQL owns truth. Redis provides speed. BullMQ provides asynchronous execution.**
 
 The system should be designed so that:
 
 ```text
-Redis failure
-    ≠
-Business data loss
+Redis Cache Failure
+        ≠
+Business Data Loss
 
-Worker failure
-    ≠
-Business transaction failure
+Worker Failure
+        ≠
+Business Transaction Failure
 
-AI failure
-    ≠
-POS failure
+AI Failure
+        ≠
+POS Failure
 
-Email failure
-    ≠
-Payment failure
+Email Failure
+        ≠
+Sale Failure
+
+Analytics Failure
+        ≠
+Inventory Failure
 ```
 
-Buzzsynx should remain operational even when non-critical supporting systems fail.
+For the initial Buzzsynx supermarket implementation:
 
-> **Use Redis when speed matters.
-> Use BullMQ when time does not need to block the user.
-> Use PostgreSQL whenever business truth matters.**
+```text
+                    PostgreSQL
+                        │
+                 Source of Truth
+                        │
+          ┌─────────────┴─────────────┐
+          ▼                           ▼
+        Redis                       BullMQ
+     Fast Reads                  Async Work
+          │                           │
+          │              ┌────────────┼────────────┐
+          │              ▼            ▼            ▼
+          │             AI       Notifications   Reports
+          │
+          ▼
+       Frontend
+```
+
+The architecture should remain simple enough for the current modular monolith while providing a clean path toward larger workloads.
+
+> **Use Redis when speed matters.**
+
+> **Use BullMQ when work does not need to block the user.**
+
+> **Use PostgreSQL whenever business truth matters.**
+
+> **Keep the critical path deterministic; move expensive and non-critical work outside it.**
