@@ -2,31 +2,56 @@
 
 **Document:** `docs/06-industry-capabilities.md`
 **Project:** Buzzsynx
-**Version:** 1.0
+**Version:** 2.0
 **Status:** Architecture Specification
+**Architecture:** Multi-Tenant Modular Monolith
+**Initial Industry:** Supermarket / Grocery Retail
 
 ---
 
-## 1. Purpose
+# 1. Purpose
 
-Buzzsynx is designed as a **multi-tenant, multi-industry business operations platform**.
+Buzzsynx is designed as a **multi-tenant, multi-industry business operations SaaS platform**.
 
-The platform must support different business types without creating a separate application for every industry.
+The platform uses:
 
-Examples:
+> **One shared business core + configurable capabilities + tenant-specific configuration + industry-specific modules where required.**
 
-* Tenant A → Pharmacy
-* Tenant B → Supermarket
-* Tenant C → Clothing Store
-* Tenant D → Restaurant
+Buzzsynx should be capable of supporting different business types without creating a separate application or codebase for each industry.
 
-The core application remains shared while industry-specific capabilities are enabled through configuration and modular business rules.
+Potential industries include:
+
+* Supermarket / Grocery
+* Pharmacy
+* Clothing / Fashion
+* Restaurant / Cafe
+* Electronics
+* Other retail and service businesses
+
+However, these industries are **not equal MVP implementation commitments**.
+
+### Current implementation strategy
+
+**Supermarket / Grocery is the first complete industry implementation.**
+
+Other industries are represented architecturally so that the platform can evolve without redesigning the shared core.
+
+```text
+BUZZSYNX
+
+Shared Core
+     │
+     ├── Supermarket / Grocery ← Initial implementation
+     │
+     ├── Pharmacy             ← Future capability set
+     ├── Clothing             ← Future capability set
+     ├── Restaurant           ← Future capability set
+     └── Other Industries     ← Future
+```
 
 ### Core principle
 
-> **One application + one shared business engine + industry-specific capabilities + tenant configuration.**
-
-Industry configuration should change how the application behaves and what capabilities are available, not create a completely different application.
+> **Design for multiple industries. Build one industry completely first.**
 
 ---
 
@@ -35,160 +60,465 @@ Industry configuration should change how the application behaves and what capabi
 The industry capability architecture must provide:
 
 * Shared core business functionality
+* Configurable capabilities
 * Industry-specific workflows
-* Configurable features
-* Reusable domain modules
 * Tenant isolation
-* Extensibility for future industries
-* Minimal duplication
+* Store/branch scope
+* Reusable domain modules
 * Clear business rules
-* Easy onboarding
-* Ability to introduce new capabilities without rewriting the core system
+* Controlled extensibility
+* Simple tenant onboarding
+* Minimal code duplication
+* Ability to introduce future industries without rewriting the core
 
 The architecture should avoid:
 
+* Separate applications for each industry
 * Separate codebases for each industry
-* Large `if/else` blocks throughout the application
+* Large industry-specific `if/else` blocks
 * Hardcoded industry logic inside generic services
 * Duplicated product, inventory, POS and sales modules
-* Allowing frontend configuration to determine business permissions
+* Frontend-controlled business permissions
+* Premature implementation of every future industry
 
 ---
 
-# 3. Capability Architecture
+# 3. Architectural Model
 
-Buzzsynx separates business functionality into three layers.
+Buzzsynx separates the platform into four conceptual layers:
 
 ```text
-┌──────────────────────────────────────┐
-│        Tenant Configuration          │
-│                                      │
-│ Industry: Pharmacy                   │
-│ Enabled Capabilities:                │
-│ - Batch Tracking                     │
-│ - Expiry Tracking                    │
-│ - Prescription Workflow              │
-└──────────────────┬───────────────────┘
-                   │
-                   ▼
-┌──────────────────────────────────────┐
-│       Industry Capabilities          │
-│                                      │
-│ Pharmacy Rules / Features            │
-│ Supermarket Rules / Features         │
-│ Clothing Rules / Features            │
-│ Restaurant Rules / Features          │
-└──────────────────┬───────────────────┘
-                   │
-                   ▼
-┌──────────────────────────────────────┐
-│          Shared Core Engine          │
-│                                      │
-│ Products                             │
-│ Inventory                            │
-│ Purchasing                           │
-│ POS                                  │
-│ Sales                                │
-│ Customers                            │
-│ Payments                             │
-│ Reports                              │
-│ Analytics                            │
-└──────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│              Tenant Context                │
+│                                            │
+│ Tenant / Business                          │
+│ Industry Profile                           │
+│ Enabled Capabilities                       │
+│ Capability Configuration                   │
+│ Active Store / Branch                      │
+└──────────────────────┬─────────────────────┘
+                       │
+                       ▼
+┌────────────────────────────────────────────┐
+│          Industry Capabilities             │
+│                                            │
+│ Supermarket Capabilities                   │
+│ Pharmacy Capabilities                      │
+│ Clothing Capabilities                      │
+│ Restaurant Capabilities                    │
+│ Future Capabilities                        │
+└──────────────────────┬─────────────────────┘
+                       │
+                       ▼
+┌────────────────────────────────────────────┐
+│              Shared Core                   │
+│                                            │
+│ Products                                   │
+│ Inventory                                  │
+│ Purchasing                                │
+│ POS / Sales                                │
+│ Customers                                  │
+│ Payments                                   │
+│ Suppliers                                  │
+│ Reports                                    │
+│ Analytics                                  │
+│ Authentication / Authorization             │
+└────────────────────────────────────────────┘
 ```
 
-The **shared core** provides common business operations.
+The shared core owns common business behavior.
 
-Industry capabilities extend or configure those operations.
+Capabilities extend the core where a business requires additional behavior.
+
+Industry configuration provides sensible defaults but does not replace authorization or business validation.
 
 ---
 
-# 4. Shared Core Capabilities
+# 4. Tenant and Store Context
 
-Every supported industry should be able to use the following common capabilities.
+Industry capability resolution must operate inside a trusted tenant context.
 
-## 4.1 Authentication
+Buzzsynx hierarchy:
+
+```text
+Super Admin
+     │
+     ▼
+Tenant / Business
+     │
+     ▼
+Store / Branch
+     │
+     ▼
+Membership / User
+```
+
+A tenant may operate:
+
+* One store
+* Multiple stores
+* Multiple branches
+
+Capabilities belong to the tenant configuration, while some configuration and data may be scoped to a specific store.
+
+Example:
+
+```text
+Tenant: ABC Supermarket
+
+Industry:
+SUPERMARKET
+
+Capabilities:
+- BARCODE
+- WEIGHT_BASED_PRODUCTS
+- LOW_STOCK_ALERTS
+- OFFERS
+
+Stores:
+- Main Branch
+- Town Branch
+- Highway Branch
+```
+
+Capability checks must therefore consider:
+
+```text
+Authenticated User
+       ↓
+Tenant Membership
+       ↓
+Store Scope
+       ↓
+RBAC Permissions
+       ↓
+Capability Availability
+       ↓
+Business Rules
+```
+
+---
+
+# 5. Shared Core
+
+The shared core contains functionality that can be reused across multiple industries.
+
+Core domains include:
+
+* Authentication
+* Tenant management
+* Store / branch management
+* Memberships
+* RBAC
+* Products
+* Categories
+* Brands
+* Inventory
+* Suppliers
+* Purchasing
+* POS
+* Sales
+* Customers
+* Payments
+* Invoices
+* Reports
+* Analytics
+* Notifications
+* Audit
+* AI
+
+The shared core should remain as industry-neutral as reasonably possible.
+
+---
+
+# 6. Authentication
+
+Authentication is shared across all tenants and industries.
+
+Capabilities include:
 
 * Registration
 * Login
 * Logout
 * Password management
-* OAuth
-* Session management
 * Account verification
+* OAuth where enabled
+* Session management
+* Authentication recovery
+
+Authentication answers:
+
+> **Who is this user?**
+
+It does not determine what the user can do.
+
+Authorization and capability checks happen separately.
 
 ---
 
-## 4.2 Tenant Management
+# 7. Tenant Management
+
+Shared tenant functionality includes:
 
 * Tenant creation
-* Tenant configuration
-* Tenant status
 * Business profile
-* Business settings
+* Tenant status
 * Industry selection
+* Business settings
 * Subscription information
+* Capability configuration
+* Store management
 
----
-
-## 4.3 User Management
-
-* Staff accounts
-* User invitations
-* User activation/deactivation
-* Tenant membership
-* Role assignment
-
----
-
-## 4.4 RBAC
-
-Supported roles may include:
+Tenant lifecycle:
 
 ```text
-OWNER
-ADMIN
-MANAGER
-CASHIER
-INVENTORY_MANAGER
-ACCOUNTANT
-STAFF
-MODERATOR
-MEMBER
+PENDING
+   ↓
+ACTIVE
+   ↓
+SUSPENDED
+   ↓
+ARCHIVED
 ```
 
-Actual roles and permissions can vary by tenant.
+Tenant status is controlled by the platform.
 
 ---
 
-## 4.5 Product Management
+# 8. Store / Branch Management
 
-Shared product capabilities include:
+Stores are part of the core architecture because Buzzsynx is designed for multi-branch businesses.
+
+A store may contain:
+
+* Name
+* Address
+* Contact information
+* Tax/business information
+* Operating status
+* Store-specific configuration
+* Staff assignments
+
+Example:
+
+```text
+Tenant
+│
+├── Store A
+│   ├── Cashiers
+│   └── Inventory
+│
+├── Store B
+│   ├── Cashiers
+│   └── Inventory
+│
+└── Store C
+    ├── Cashiers
+    └── Inventory
+```
+
+Store-scoped operations must not expose data from another store unless the user's permissions explicitly allow cross-store access.
+
+---
+
+# 9. User Management and Memberships
+
+A user belongs to a tenant through a membership.
+
+Conceptually:
+
+```text
+User
+  ↓
+Tenant Membership
+  ↓
+Role / Permissions
+  ↓
+Store Scope
+```
+
+A user may have access to:
+
+* One store
+* Multiple stores
+* All stores, depending on role and permissions
+
+Roles should not be treated as global properties of the user.
+
+---
+
+# 10. RBAC
+
+Current Buzzsynx platform roles are:
+
+```text
+SUPER_ADMIN
+OWNER
+ADMIN_MANAGER
+CASHIER
+ACCOUNTANT
+STORE_STAFF
+```
+
+### Super Admin
+
+Platform-level role.
+
+Responsible for:
+
+* Platform administration
+* Tenant management
+* Tenant status
+* Platform configuration
+* Operational oversight
+
+### Owner
+
+Tenant/business-level role.
+
+Responsible for:
+
+* Business configuration
+* Store management
+* Staff management
+* Financial/business visibility
+* Product and inventory management
+
+### Admin / Manager
+
+Operational management role.
+
+### Cashier
+
+Primarily responsible for:
+
+* POS
+* Sales
+* Customer lookup
+* Applicable returns
+
+### Accountant
+
+Primarily responsible for:
+
+* Payments
+* Financial records
+* Reports
+* Accounting-related operations
+
+### Store Staff
+
+Operational store activities according to assigned permissions.
+
+---
+
+# 11. Permission Model
+
+Authorization should use permissions rather than relying only on role names.
+
+Example:
+
+```text
+product.view
+product.create
+product.update
+
+inventory.view
+inventory.adjust
+inventory.transfer
+
+sale.create
+sale.view
+sale.return
+
+payment.view
+payment.create
+payment.refund
+
+report.view
+```
+
+Roles map to permissions.
+
+Permissions are evaluated together with:
+
+* Tenant scope
+* Store scope
+* Capability availability
+
+Industry capability does not grant permission automatically.
+
+---
+
+# 12. Product Management
+
+Products are part of the shared core.
+
+Common product capabilities include:
 
 * Product creation
-* Product editing
-* Product deletion/archive
+* Product update
+* Product archive
 * Product search
-* Product categories
+* Categories
 * Brands
 * SKU
 * Barcode
 * Pricing
 * Tax configuration
 * Product status
-* Product images
+* Images
 * Product metadata
 
-Industry-specific product attributes are handled through capabilities.
+The product model should remain generic.
+
+Industry-specific data should be represented through extensions or dedicated capability modules.
 
 ---
 
-# 5. Inventory Capability
+# 13. Product and Stockable Item Separation
+
+The platform should distinguish between the **product definition** and the **stockable item** where necessary.
+
+Example:
+
+```text
+Product
+Classic T-Shirt
+
+     ↓
+
+Variants / Stockable Items
+
+M / Black
+M / White
+L / Black
+L / White
+```
+
+For a simple supermarket product:
+
+```text
+Product
+Rice 5kg
+
+     ↓
+
+Stockable Item
+Rice 5kg
+```
+
+This allows future industries to introduce variants without forcing every product to use complex variant structures.
+
+---
+
+# 14. Inventory
 
 Inventory is a shared core domain.
 
-The system should maintain inventory using a **stock movement ledger**.
+Buzzsynx uses a **stock movement ledger** to maintain traceability.
 
-Example movement types:
+Common movement categories include:
 
 ```text
 PURCHASE
@@ -200,93 +530,146 @@ EXPIRY
 ADJUSTMENT
 ```
 
-Inventory quantity should be derived from validated stock movements and controlled inventory updates.
+A stock movement should be treated as an immutable business record.
 
-### Example
+Corrections should generally be represented through new corrective movements rather than editing historical movements.
+
+---
+
+# 15. Inventory Balance
+
+The stock ledger provides the historical movement trail.
+
+The current stock balance may be maintained as a transactional balance for efficient reads.
+
+Conceptually:
 
 ```text
 Purchase +100
-       ↓
-Stock = 100
+      ↓
+Balance = 100
 
 Sale -20
-       ↓
-Stock = 80
+      ↓
+Balance = 80
 
 Damage -5
-       ↓
-Stock = 75
+      ↓
+Balance = 75
 ```
 
-Industry capabilities can add additional metadata and rules.
+The important invariant is:
+
+> **Stock-changing operations and the corresponding balance update must occur transactionally.**
+
+Redis must not become the authoritative stock source.
+
+POS stock validation must use authoritative transactional data.
 
 ---
 
-# 6. Purchasing
+# 16. Purchasing
 
-Shared purchasing functionality:
+Shared purchasing functionality may include:
 
 * Suppliers
-* Purchase orders
-* Purchase invoices
+* Purchase documents
 * Purchase items
 * Receiving
-* Purchase returns
-* Cost tracking
-* Supplier payments
 * Purchase history
+* Cost tracking
+* Purchase returns
+* Supplier payments where implemented
 
-Industry-specific purchasing rules can extend the workflow.
+Purchase orders may be introduced where useful, but they are not required to be the foundation of every purchasing workflow.
 
----
-
-# 7. POS
-
-The POS engine should remain shared.
-
-Common workflow:
+The important inventory flow is:
 
 ```text
-Search Product
-      ↓
-Add to Cart
-      ↓
-Validate Product
-      ↓
-Validate Stock
-      ↓
-Calculate Price
-      ↓
-Calculate Tax/Discount
-      ↓
-Process Payment
-      ↓
-Create Sale
-      ↓
-Create Stock Movement
-      ↓
-Generate Invoice
+Supplier
+   ↓
+Purchase / Receiving
+   ↓
+Verify Quantity & Cost
+   ↓
+Inventory Transaction
+   ↓
+Stock Balance
 ```
 
-Industry capabilities can influence:
+Finalized purchasing records should not be freely editable.
 
-* Product selection
-* Pricing
-* Cart rules
-* Units
-* Variants
-* Discounts
-* Tax rules
-* Additional validation
-* Post-sale workflows
+Corrections should use controlled adjustment or reversal workflows.
 
 ---
 
-# 8. Sales
+# 17. POS
 
-Shared sales capabilities include:
+POS is a shared transaction engine.
 
-* Sales transactions
+Canonical workflow:
+
+```text
+Product Search / Barcode
+        ↓
+Cart
+        ↓
+Validate Product
+        ↓
+Validate Stock
+        ↓
+Calculate Price
+        ↓
+Calculate Discount / Tax
+        ↓
+Validate Payment State
+        ↓
+Create Sale
+        ↓
+Create Stock Movement
+        ↓
+Create Invoice Record
+        ↓
+Commit Transaction
+```
+
+The POS UI may differ by industry, but the transactional core should remain shared wherever possible.
+
+---
+
+# 18. POS Transaction Principles
+
+The server is authoritative for:
+
+* Product validity
+* Price
+* Discount rules
+* Tax calculation
+* Stock availability
+* Sale totals
+* Payment state
+* Inventory movement
+* Invoice numbering
+
+The client must not be trusted to determine the final financial or inventory result.
+
+External services such as:
+
+* Payment gateways
+* Email
+* WhatsApp
+* AI
+* PDF generation
+
+must not be allowed to compromise the core transaction.
+
+---
+
+# 19. Sales
+
+Shared sales functionality includes:
+
+* Sale transactions
 * Sale items
 * Discounts
 * Taxes
@@ -297,55 +680,446 @@ Shared sales capabilities include:
 * Customer association
 * Sales history
 
-Industry-specific workflows can extend the sale process.
+Customer association should be optional for workflows such as walk-in sales where applicable.
 
 ---
 
-# 9. Industry Capability Model
+# 20. Payment Separation
 
-Each tenant has an industry profile.
+Sale state and payment state should remain conceptually separate.
+
+Example:
+
+```text
+SALE
+  └── Payment
+       ├── CASH
+       ├── UPI
+       ├── CARD
+       └── CREDIT
+```
+
+Split payments may contain multiple payment allocations.
+
+External payment providers must be confirmed through trusted provider responses/webhooks rather than frontend success callbacks.
+
+---
+
+# 21. Industry Capability Model
+
+Each tenant has an industry profile and enabled capabilities.
+
+Conceptually:
+
+```text
+Tenant
+│
+├── Industry
+│
+└── Capabilities
+      ├── Capability A
+      ├── Capability B
+      └── Capability C
+```
 
 Example:
 
 ```js
 {
-  tenantId: "tenant_123",
-  industry: "PHARMACY",
+  industry: "SUPERMARKET",
   capabilities: [
-    "BATCH_TRACKING",
-    "EXPIRY_TRACKING",
-    "PRESCRIPTION_WORKFLOW"
+    "BARCODE",
+    "WEIGHT_BASED_PRODUCTS",
+    "LOW_STOCK_ALERTS",
+    "OFFERS"
   ]
 }
 ```
 
-The backend uses this configuration to determine which industry functionality is available.
+Industry provides default capability recommendations.
+
+The actual enabled capabilities belong to the tenant configuration.
 
 ---
 
-# 10. Pharmacy Capability
+# 22. Capability vs Industry
 
-Pharmacy businesses require additional product and inventory information.
+Industry and capability are different concepts.
 
-## 10.1 Pharmacy Features
+Example:
 
 ```text
-Medicine Information
-Batch Tracking
-Expiry Tracking
-Manufacturer
-MRP
-Prescription Requirement
-Generic Medicine
-Dosage Information
-Medicine Categories
+Industry:
+PHARMACY
+
+Capabilities:
+BATCH_TRACKING
+EXPIRY_TRACKING
+PRESCRIPTION_WORKFLOW
 ```
+
+Another pharmacy may not require every capability.
+
+Therefore:
+
+> **Industry determines the default capability profile. Tenant configuration determines which capabilities are enabled.**
+
+However, capability enablement must also respect:
+
+* Product availability
+* Subscription/plan rules where applicable
+* Capability dependencies
+* Platform restrictions
+* Tenant configuration permissions
 
 ---
 
-## 10.2 Batch Tracking
+# 23. Capability Categories
 
-A medicine product may have multiple batches.
+Capabilities can be grouped by domain.
+
+### Product
+
+```text
+PRODUCT_VARIANTS
+BARCODE
+BATCH_TRACKING
+SERIAL_TRACKING
+UNIT_MANAGEMENT
+```
+
+### Inventory
+
+```text
+EXPIRY_TRACKING
+STOCK_TRANSFER
+MULTI_STORE_INVENTORY
+RECIPE_CONSUMPTION
+LOW_STOCK_ALERTS
+```
+
+### POS
+
+```text
+FAST_CHECKOUT
+WEIGHT_BASED_PRODUCTS
+TABLE_ORDERING
+PRESCRIPTION_VALIDATION
+```
+
+### Sales
+
+```text
+RETURNS
+REFUNDS
+DISCOUNTS
+OFFERS
+CUSTOMER_CREDIT
+```
+
+### Operations
+
+```text
+KITCHEN_WORKFLOW
+WARRANTY_TRACKING
+REPAIR_WORKFLOW
+```
+
+Not every capability needs to be implemented in the initial product.
+
+---
+
+# 24. Capability Resolution
+
+Every protected request should resolve trusted context.
+
+Conceptually:
+
+```js
+const context = {
+  tenantId,
+  userId,
+  membership,
+  storeId,
+  permissions,
+  capabilities
+};
+```
+
+The backend determines this context.
+
+A service may then check:
+
+```text
+Is capability enabled?
+        ↓
+Does user have permission?
+        ↓
+Does user have store access?
+        ↓
+Are business rules satisfied?
+```
+
+The frontend must never be the authority for capability access.
+
+---
+
+# 25. Capability Middleware
+
+Capability checks may be implemented at the API boundary where appropriate.
+
+Example:
+
+```js
+requireCapability("BATCH_TRACKING")
+```
+
+Request flow:
+
+```text
+Authentication
+      ↓
+Tenant Resolution
+      ↓
+Membership
+      ↓
+Store Scope
+      ↓
+RBAC
+      ↓
+Capability Check
+      ↓
+Validation
+      ↓
+Controller
+      ↓
+Service
+```
+
+Capability middleware should not replace service-level business validation.
+
+Critical business rules must remain enforced inside the application/domain layer.
+
+---
+
+# 26. Avoid Industry-Specific Conditionals
+
+Avoid spreading logic such as:
+
+```js
+if (industry === "PHARMACY") {
+   ...
+}
+
+if (industry === "RESTAURANT") {
+   ...
+}
+```
+
+through generic services.
+
+Prefer:
+
+```text
+Shared Core
+     │
+     ├── Variant Capability
+     ├── Batch Capability
+     ├── Recipe Capability
+     └── Serial Capability
+```
+
+Industry modules can compose these capabilities.
+
+Some industry-specific orchestration may still require explicit configuration or strategy selection. The goal is to prevent industry knowledge from leaking throughout unrelated modules.
+
+---
+
+# 27. Capability Module Structure
+
+A conceptual structure may be:
+
+```text
+src/server/modules/
+
+├── products/
+├── inventory/
+├── purchasing/
+├── pos/
+├── sales/
+├── customers/
+├── payments/
+├── analytics/
+├── reports/
+│
+└── capabilities/
+    ├── common/
+    ├── supermarket/
+    ├── pharmacy/
+    ├── clothing/
+    └── restaurant/
+```
+
+The exact folder structure may evolve.
+
+The important rule is:
+
+> **Architectural boundaries matter more than folder names.**
+
+---
+
+# 28. Initial Supermarket Capability Set
+
+Supermarket / Grocery is the first complete industry implementation.
+
+Initial capabilities may include:
+
+```text
+BARCODE
+UNIT_MANAGEMENT
+WEIGHT_BASED_PRODUCTS
+LOW_STOCK_ALERTS
+OFFERS
+DISCOUNTS
+FAST_POS
+SUPPLIER_MANAGEMENT
+```
+
+The exact MVP capability list should remain aligned with the product feature checklist.
+
+Do not implement every theoretical supermarket feature before validating the core workflow.
+
+---
+
+# 29. Supermarket Workflow
+
+Canonical supermarket workflow:
+
+```text
+Tenant Onboarding
+      ↓
+Store Setup
+      ↓
+Product Setup
+      ↓
+Supplier Setup
+      ↓
+Purchase / Receiving
+      ↓
+Inventory
+      ↓
+POS
+      ↓
+Sale
+      ↓
+Payment
+      ↓
+Invoice
+      ↓
+Stock Movement
+      ↓
+Analytics
+      ↓
+AI Insights
+```
+
+This is the first complete vertical slice of Buzzsynx.
+
+---
+
+# 30. Supermarket Capability — Barcode
+
+Barcode scanning is a core supermarket capability.
+
+Workflow:
+
+```text
+Scan Barcode
+      ↓
+Resolve Product / Stockable Item
+      ↓
+Validate Store Availability
+      ↓
+Resolve Price
+      ↓
+Validate Stock
+      ↓
+Add to Cart
+```
+
+Barcode lookup should be scoped appropriately to the tenant/store context.
+
+---
+
+# 31. Supermarket Capability — Units
+
+Supermarket products may use different units.
+
+Examples:
+
+```text
+PIECE
+KG
+GRAM
+LITER
+ML
+PACK
+BOX
+DOZEN
+```
+
+Unit management must be configurable rather than hardcoded around one industry-specific assumption.
+
+Where conversions are supported, conversion rules must be explicit and validated.
+
+---
+
+# 32. Supermarket Capability — Offers
+
+Offers may include:
+
+```text
+Buy 1 Get 1
+Buy 2 Get 1
+Percentage Discount
+Fixed Discount
+Bundle Pricing
+Member Pricing
+```
+
+Offers should be represented as configurable pricing rules.
+
+Pricing rules must be evaluated by the backend.
+
+The frontend must not calculate the authoritative final price.
+
+---
+
+# 33. Future Pharmacy Capability
+
+Pharmacy is a **future industry capability set**, not part of the initial supermarket MVP.
+
+Potential pharmacy capabilities include:
+
+```text
+MEDICINE_INFORMATION
+BATCH_TRACKING
+EXPIRY_TRACKING
+PRESCRIPTION_WORKFLOW
+MANUFACTURER_DATA
+GENERIC_MEDICINE
+DOSAGE_INFORMATION
+```
+
+The exact implementation must be designed according to the applicable jurisdiction and business requirements.
+
+---
+
+# 34. Pharmacy — Batch Tracking
+
+A pharmacy product may contain multiple batches.
+
+Example:
 
 ```text
 Paracetamol 500mg
@@ -359,154 +1133,80 @@ Expiry: 2028-03
 Stock: 250
 ```
 
-The inventory system must be able to distinguish between these batches.
+Batch information should be represented as dedicated inventory/business data rather than generic nullable product fields.
 
 ---
 
-## 10.3 Expiry Management
+# 35. Pharmacy — Expiry Management
 
-The system should identify:
-
-* Expired products
-* Products approaching expiry
-* Expiry quantity
-* Expiry value
-* Supplier information
-
-Example workflow:
+Potential workflow:
 
 ```text
-Expiry detected
-      ↓
-Generate alert
-      ↓
-Create expiry report
-      ↓
-Staff review
-      ↓
-Mark stock as EXPIRY
+Expiry Monitoring
+       ↓
+Identify Affected Batch
+       ↓
+Generate Alert
+       ↓
+Staff Review
+       ↓
+Inventory Action
 ```
+
+Expired inventory must not automatically become sellable inventory.
+
+Expiry-related inventory changes must create traceable inventory movements.
 
 ---
 
-## 10.4 Prescription Workflow
+# 36. Pharmacy — Prescription Workflow
 
-Some products may require additional validation before sale.
+Some products may require additional validation.
+
+Conceptual workflow:
+
+```text
+Product Requires Prescription
+        ↓
+POS Requests Required Information
+        ↓
+Authorized Staff Verification
+        ↓
+Business / Regulatory Validation
+        ↓
+Sale Permitted or Rejected
+```
+
+The actual workflow must be configurable according to jurisdiction and applicable regulations.
+
+---
+
+# 37. Future Clothing Capability
+
+Clothing is a future industry capability set.
+
+Potential capabilities include:
+
+```text
+PRODUCT_VARIANTS
+SIZE
+COLOR
+MATERIAL
+STYLE
+VARIANT_SKU
+VARIANT_BARCODE
+VARIANT_INVENTORY
+```
+
+The shared product and inventory engines should remain reusable.
+
+---
+
+# 38. Clothing — Variant Model
 
 Example:
 
 ```text
-Product requires prescription
-        ↓
-POS requests prescription
-        ↓
-Staff verifies
-        ↓
-Sale permitted
-```
-
-The exact regulatory workflow should be configurable according to the jurisdiction and business requirements.
-
----
-
-# 11. Supermarket Capability
-
-Supermarkets generally require fast product discovery and high-volume transactions.
-
-## 11.1 Features
-
-```text
-Barcode Scanning
-Fast POS
-Bulk Products
-Units
-Weight-based Products
-Offers
-Discounts
-Product Bundles
-Low-stock Alerts
-Supplier Management
-```
-
----
-
-## 11.2 Barcode Workflow
-
-```text
-Scan Barcode
-      ↓
-Find Product
-      ↓
-Validate Price
-      ↓
-Validate Stock
-      ↓
-Add to Cart
-```
-
-POS performance should prioritize fast repeated transactions.
-
----
-
-## 11.3 Unit Management
-
-Products may use:
-
-```text
-Piece
-Kg
-Gram
-Liter
-ML
-Pack
-Box
-Dozen
-```
-
-The inventory model should support configurable units rather than hardcoding one unit type.
-
----
-
-## 11.4 Offers
-
-Examples:
-
-```text
-Buy 1 Get 1
-Buy 2 Get 1
-10% Discount
-₹100 Off
-Bundle Pricing
-Member Pricing
-```
-
-Offers should be represented as configurable pricing rules rather than hardcoded supermarket logic.
-
----
-
-# 12. Clothing Capability
-
-Clothing stores commonly require product variants.
-
-## 12.1 Features
-
-```text
-Size
-Color
-Material
-Brand
-Style
-Variant SKU
-Variant Barcode
-Variant Inventory
-```
-
----
-
-## 12.2 Product Variant Example
-
-```text
-Product:
 Classic T-Shirt
 
 Variants:
@@ -521,7 +1221,7 @@ XL / Black
 XL / White
 ```
 
-Each variant can have:
+Each stockable variant may have:
 
 * SKU
 * Barcode
@@ -530,95 +1230,70 @@ Each variant can have:
 * Images
 * Attributes
 
----
-
-## 12.3 Variant Inventory
-
-Inventory should operate at the correct stockable level.
-
-Example:
-
-```text
-Classic T-Shirt
-    │
-    ├── M / Black → 20
-    ├── M / White → 15
-    ├── L / Black → 10
-    └── L / White → 8
-```
-
-The generic inventory engine remains unchanged.
-
-The clothing capability determines that the **variant**, rather than the parent product, is the stockable item.
+The generic inventory engine operates against the correct stockable item.
 
 ---
 
-# 13. Restaurant Capability
+# 39. Future Restaurant Capability
 
-Restaurants require a different interpretation of products and inventory.
+Restaurant functionality is a future capability set.
 
-The system must distinguish between:
+Restaurants introduce a different operational model involving:
 
 ```text
 Menu Items
 Ingredients
 Recipes
-Kitchen Operations
 Tables
 Orders
+Kitchen Operations
 ```
+
+These should be implemented as restaurant capabilities rather than forcing restaurant-specific behavior into the generic POS engine.
 
 ---
 
-## 13.1 Menu Management
+# 40. Restaurant — Menu and Recipe Management
+
+A menu item may contain:
+
+```text
+Selling Price
+Category
+Availability
+Ingredients
+Recipe
+Preparation Time
+Tax Configuration
+```
 
 Example:
 
 ```text
 Burger
-Pizza
-Pasta
-Fresh Juice
-Coffee
+   ↓
+Recipe
+   ├── Bun
+   ├── Patty
+   ├── Cheese
+   ├── Lettuce
+   └── Sauce
 ```
-
-Menu items may have:
-
-* Selling price
-* Category
-* Availability
-* Ingredients
-* Recipe
-* Preparation time
-* Tax configuration
 
 ---
 
-# 14. Ingredient Inventory
+# 41. Restaurant — Ingredient Consumption
 
-Restaurant inventory can track raw materials.
-
-Example:
+When a menu item is sold:
 
 ```text
-Burger
- ├── Bun
- ├── Patty
- ├── Cheese
- ├── Lettuce
- └── Sauce
-```
-
-When a burger is sold:
-
-```text
-Burger Sale
+Menu Sale
      ↓
 Recipe Resolution
      ↓
 Ingredient Consumption
      ↓
-Stock Movements
+Inventory Movements
 ```
 
 Example:
@@ -633,23 +1308,25 @@ Lettuce   -1
 Sauce     -20ml
 ```
 
-The shared inventory ledger can record these movements.
+The inventory ledger remains shared.
+
+The restaurant capability determines how the sale translates into ingredient consumption.
 
 ---
 
-# 15. Restaurant Tables
+# 42. Restaurant — Tables and Kitchen
 
-Restaurant capability may support:
+Potential restaurant capabilities:
 
 ```text
-Table Management
-Table Status
-Dine-in Orders
-Takeaway Orders
-Delivery Orders
+TABLE_MANAGEMENT
+KITCHEN_WORKFLOW
+DINE_IN
+TAKEAWAY
+DELIVERY
 ```
 
-Example states:
+Table states may include:
 
 ```text
 AVAILABLE
@@ -658,239 +1335,36 @@ RESERVED
 CLEANING
 ```
 
----
-
-# 16. Kitchen Workflow
-
-Restaurant orders may follow:
+Kitchen workflow may include:
 
 ```text
-Order Created
-      ↓
-Kitchen Queue
-      ↓
-Preparing
-      ↓
-Ready
-      ↓
-Served
-      ↓
-Completed
+ORDER_CREATED
+QUEUED
+PREPARING
+READY
+SERVED
+COMPLETED
 ```
 
-Kitchen functionality should be implemented as a restaurant capability rather than embedded into the generic POS engine.
+These are future capabilities, not initial supermarket requirements.
 
 ---
 
-# 17. Capability Categories
+# 43. Industry Extensions and Data Model
 
-Capabilities should be categorized to keep the system manageable.
-
-Example:
-
-```text
-PRODUCT_CAPABILITIES
-    ├── PRODUCT_VARIANTS
-    ├── BARCODE
-    ├── BATCH_TRACKING
-    └── INGREDIENTS
-
-INVENTORY_CAPABILITIES
-    ├── EXPIRY_TRACKING
-    ├── STOCK_TRANSFER
-    ├── RECIPE_CONSUMPTION
-    └── MULTI_LOCATION
-
-POS_CAPABILITIES
-    ├── FAST_CHECKOUT
-    ├── TABLE_ORDERING
-    ├── PRESCRIPTION_VALIDATION
-    └── WEIGHT_BASED_PRODUCTS
-
-SALES_CAPABILITIES
-    ├── RETURNS
-    ├── REFUNDS
-    ├── DISCOUNTS
-    └── OFFERS
-```
-
----
-
-# 18. Capability vs Industry
-
-Industry and capability are not the same thing.
-
-For example:
-
-```text
-Industry:
-PHARMACY
-
-Capabilities:
-- BATCH_TRACKING
-- EXPIRY_TRACKING
-- PRESCRIPTION_WORKFLOW
-```
-
-Another pharmacy may not need every capability.
-
-Therefore:
-
-> Industry provides the default configuration. Tenant capabilities determine what is actually enabled.
-
----
-
-# 19. Capability Resolution
-
-Backend requests should resolve capabilities from trusted tenant context.
-
-Example:
-
-```js
-const context = {
-  tenantId,
-  userId,
-  role,
-  permissions,
-  capabilities
-};
-```
-
-A service can then verify:
-
-```js
-if (!context.capabilities.includes("BATCH_TRACKING")) {
-  throw new Error("Capability not enabled");
-}
-```
-
-Capability checks belong in the backend/application layer.
-
-The frontend may hide unavailable functionality for UX purposes, but it must never be the security authority.
-
----
-
-# 20. Capability Middleware
-
-Where appropriate, capability checks can be implemented as middleware.
-
-Example:
-
-```js
-requireCapability("EXPIRY_TRACKING")
-```
-
-Request flow:
-
-```text
-Authentication
-      ↓
-Tenant Resolution
-      ↓
-Membership
-      ↓
-RBAC
-      ↓
-Capability Check
-      ↓
-Validation
-      ↓
-Controller
-      ↓
-Service
-```
-
-This keeps feature access consistent.
-
----
-
-# 21. Avoid Industry-Specific Conditionals
-
-Avoid code like:
-
-```js
-if (industry === "PHARMACY") {
-   ...
-}
-
-if (industry === "RESTAURANT") {
-   ...
-}
-
-if (industry === "CLOTHING") {
-   ...
-}
-```
-
-throughout the application.
-
-This becomes difficult to maintain as industries increase.
-
-Instead, use capability-based modules.
-
-```text
-Core Product Service
-        │
-        ├── Variant Capability
-        ├── Batch Capability
-        └── Recipe Capability
-```
-
-The core service remains stable.
-
----
-
-# 22. Industry Module Structure
-
-Industry-specific functionality should be isolated.
-
-Example:
-
-```text
-src/server/modules/
-│
-├── products/
-├── inventory/
-├── pos/
-├── sales/
-│
-└── industry/
-    ├── pharmacy/
-    │   ├── batch/
-    │   ├── expiry/
-    │   └── prescription/
-    │
-    ├── supermarket/
-    │   ├── barcode/
-    │   ├── offers/
-    │   └── units/
-    │
-    ├── clothing/
-    │   └── variants/
-    │
-    └── restaurant/
-        ├── menu/
-        ├── recipes/
-        ├── tables/
-        └── kitchen/
-```
-
-The exact folder structure can evolve during implementation, but the architectural boundary should remain.
-
----
-
-# 23. Database Strategy
-
-Industry-specific data should not unnecessarily create completely separate databases or duplicate core tables.
-
-Shared entities:
+Shared entities may include:
 
 ```text
 Tenant
 User
+Membership
+Store
 Product
-Inventory
+Category
+Brand
 Supplier
+Inventory
+StockMovement
 Customer
 Sale
 SaleItem
@@ -898,9 +1372,7 @@ Payment
 Invoice
 ```
 
-Industry extensions can use additional entities where required.
-
-Examples:
+Industry-specific entities may include:
 
 ```text
 MedicineBatch
@@ -910,41 +1382,53 @@ Recipe
 RecipeIngredient
 RestaurantTable
 KitchenOrder
+Warranty
+SerialNumber
+Repair
 ```
 
-All tenant-owned industry entities must contain:
+Industry extensions should only be introduced when the business capability genuinely requires them.
+
+---
+
+# 44. Tenant Isolation
+
+Every tenant-owned industry entity must be tenant-scoped.
+
+Conceptually:
 
 ```text
 tenantId
 ```
 
-when they represent tenant-owned data.
+Store-owned records should additionally have appropriate store scope.
+
+Example:
+
+```text
+tenantId
+storeId
+```
+
+The backend must verify:
+
+```text
+Authenticated User
+       ↓
+Tenant Membership
+       ↓
+Store Access
+       ↓
+Resource Ownership
+```
+
+A valid resource ID from another tenant must never expose another tenant's data.
 
 ---
 
-# 24. Product Extensibility
+# 45. Product Extensibility
 
-The product model should support common fields while allowing industry-specific extensions.
-
-Conceptually:
-
-```text
-Product
- ├── Common Fields
- │    ├── name
- │    ├── sku
- │    ├── price
- │    ├── category
- │    └── status
- │
- └── Industry Capability
-      ├── Pharmacy → Batch / Medicine Data
-      ├── Clothing → Variants
-      ├── Restaurant → Recipe/Menu Data
-      └── Supermarket → Units / Offers
-```
-
-Do not create dozens of nullable columns such as:
+Do not create a generic product table containing unrelated industry fields such as:
 
 ```text
 medicineExpiry
@@ -955,27 +1439,51 @@ prescriptionRequired
 tableNumber
 ```
 
-inside the generic `Product` table.
+Instead:
 
-That approach couples unrelated industries together.
+```text
+Product
+ ├── Common Fields
+ │
+ └── Capability Extension
+      ├── Pharmacy
+      ├── Clothing
+      ├── Restaurant
+      └── Other
+```
+
+This keeps the shared model maintainable.
+
+However, extensibility should not automatically mean a highly generic EAV/JSON schema for everything.
+
+Use proper relational entities when an industry capability has:
+
+* Relationships
+* Transactions
+* Constraints
+* Queries
+* Reporting requirements
+* Significant business rules
 
 ---
 
-# 25. Frontend Capability Handling
+# 46. Frontend Capability Handling
 
-The frontend should dynamically display available functionality.
+The frontend may use capability configuration to control:
 
-Example:
-
-```js
-const capabilities = tenant.capabilities;
-```
-
-Navigation can be generated based on capabilities.
+* Navigation
+* Pages
+* Widgets
+* Forms
+* Actions
+* Industry-specific UI
 
 Example:
 
 ```text
+Common:
+
+Dashboard
 Inventory
 POS
 Sales
@@ -983,38 +1491,46 @@ Customers
 Reports
 AI
 
-Pharmacy:
-  Expiry
-  Batches
-  Prescriptions
+Supermarket:
 
-Restaurant:
-  Tables
-  Kitchen
-  Recipes
+Barcode
+Offers
+Units
 ```
 
-However:
+Future examples:
 
-> Frontend capability visibility is a UX feature, not a security mechanism.
+```text
+Pharmacy:
 
-The backend must independently enforce the capability.
+Batches
+Expiry
+Prescriptions
+
+Restaurant:
+
+Tables
+Kitchen
+Recipes
+```
+
+Frontend capability visibility is strictly a UX concern.
+
+> **Frontend configuration is never the security authority.**
 
 ---
 
-# 26. Dashboard Customization
+# 47. Dashboard Customization
 
-The main dashboard can use industry configuration.
+The dashboard shell remains shared.
 
-### Pharmacy
+Widgets and metrics can change according to:
 
-```text
-Today's Sales
-Low Stock
-Expiring Medicines
-Top Medicines
-Purchase Summary
-```
+* Industry
+* Enabled capabilities
+* Store
+* User permissions
+* Available data
 
 ### Supermarket
 
@@ -1022,21 +1538,31 @@ Purchase Summary
 Today's Sales
 Fast Moving Products
 Low Stock
-Offers
 Top Categories
+Offers
 ```
 
-### Clothing
+### Future Pharmacy
+
+```text
+Today's Sales
+Low Stock
+Expiring Stock
+Medicine Performance
+Purchase Summary
+```
+
+### Future Clothing
 
 ```text
 Today's Sales
 Top Variants
-Size-wise Sales
-Color-wise Sales
+Size Performance
+Color Performance
 Low Stock
 ```
 
-### Restaurant
+### Future Restaurant
 
 ```text
 Today's Orders
@@ -1047,55 +1573,13 @@ Ingredient Alerts
 Table Status
 ```
 
-The dashboard shell remains shared.
-
-Only widgets and metrics change.
-
 ---
 
-# 27. AI Industry Awareness
+# 48. Industry-Aware Analytics
 
-Buzzsynx AI should understand the tenant's industry and enabled capabilities.
+Analytics should use a shared analytics architecture with industry-specific metrics.
 
-Example:
-
-```text
-Tenant:
-Industry = PHARMACY
-Capabilities =
-  BATCH_TRACKING
-  EXPIRY_TRACKING
-```
-
-AI can generate:
-
-```text
-Expiring stock analysis
-Medicine demand forecast
-Dead stock detection
-Reorder recommendations
-Sales trends
-```
-
-For a restaurant:
-
-```text
-Ingredient demand
-Menu performance
-Waste detection
-Recipe consumption
-Sales trends
-```
-
-AI must operate within the tenant context and must never access another tenant's data.
-
----
-
-# 28. Industry-Aware Analytics
-
-Analytics should use a shared analytics engine with industry-specific metrics.
-
-Common metrics:
+Common metrics may include:
 
 ```text
 Revenue
@@ -1106,15 +1590,9 @@ Product Performance
 Inventory Value
 ```
 
-Industry metrics:
+Industry-specific metrics can be added through capability modules.
 
-### Pharmacy
-
-```text
-Expiring Stock Value
-Medicine Sales
-Batch Performance
-```
+Examples:
 
 ### Supermarket
 
@@ -1124,7 +1602,15 @@ Category Sales
 Offer Performance
 ```
 
-### Clothing
+### Future Pharmacy
+
+```text
+Expiring Stock Value
+Medicine Sales
+Batch Performance
+```
+
+### Future Clothing
 
 ```text
 Size Performance
@@ -1132,144 +1618,77 @@ Color Performance
 Variant Sales
 ```
 
-### Restaurant
+### Future Restaurant
 
 ```text
 Menu Performance
 Ingredient Usage
 Table Turnover
-Order Preparation Time
+Preparation Time
 ```
+
+Analytics are read/derived data.
+
+They must not directly mutate transactional business records.
 
 ---
 
-# 29. Adding a New Industry
+# 49. AI Industry Awareness
 
-Adding a new industry should follow a controlled process.
-
-Example: adding an electronics store.
-
-### Step 1 — Identify shared functionality
-
-Reuse:
-
-```text
-Products
-Inventory
-Purchasing
-Suppliers
-POS
-Sales
-Customers
-Payments
-Reports
-```
-
-### Step 2 — Identify unique requirements
-
-For example:
-
-```text
-Serial Numbers
-Warranty
-IMEI
-Device Variants
-Repair Tracking
-```
-
-### Step 3 — Create capabilities
-
-```text
-SERIAL_TRACKING
-WARRANTY_TRACKING
-IMEI_TRACKING
-REPAIR_WORKFLOW
-```
-
-### Step 4 — Implement industry modules
-
-```text
-industry/electronics/
-    serials/
-    warranty/
-    repairs/
-```
-
-### Step 5 — Register default configuration
-
-```text
-ELECTRONICS
-    ↓
-SERIAL_TRACKING
-WARRANTY_TRACKING
-IMEI_TRACKING
-```
-
-### Step 6 — Test tenant isolation
-
-Verify that the new capabilities work independently for each tenant.
-
----
-
-# 30. Capability Lifecycle
-
-Capabilities should support lifecycle states where necessary.
-
-```text
-AVAILABLE
-ENABLED
-DISABLED
-DEPRECATED
-```
+Buzzsynx AI should operate using trusted tenant and store context.
 
 Example:
 
 ```text
-EXPIRY_TRACKING
-    ↓
-AVAILABLE
-    ↓
-ENABLED for Tenant A
-    ↓
-DISABLED
+Tenant
+Industry = SUPERMARKET
+
+Capabilities
+BARCODE
+LOW_STOCK_ALERTS
+OFFERS
 ```
 
-Deprecated capabilities should not be silently removed if existing tenant data depends on them.
+AI can use relevant business data to produce insights such as:
+
+```text
+Low-stock analysis
+Sales trends
+Dead-stock detection
+Reorder recommendations
+Product performance
+```
+
+Future pharmacy capabilities may support:
+
+```text
+Expiry analysis
+Batch analysis
+Medicine demand trends
+```
+
+Future restaurant capabilities may support:
+
+```text
+Ingredient demand
+Waste analysis
+Menu performance
+Recipe consumption
+```
+
+AI must:
+
+* Respect tenant isolation
+* Respect store scope
+* Respect user permissions
+* Use approved/derived business data
+* Remain explainable where practical
+* Not directly mutate critical financial or inventory records
+* Not replace deterministic business rules
 
 ---
 
-# 31. Capability Dependencies
-
-Some capabilities may depend on others.
-
-Example:
-
-```text
-EXPIRY_TRACKING
-       ↓
-BATCH_TRACKING
-```
-
-or:
-
-```text
-RECIPE_CONSUMPTION
-       ↓
-INGREDIENT_INVENTORY
-```
-
-The system should validate dependencies before enabling a capability.
-
-Example:
-
-```text
-Cannot enable RECIPE_CONSUMPTION
-without INGREDIENT_INVENTORY
-```
-
----
-
-# 32. Capability Configuration
+# 50. Capability Configuration
 
 Capabilities may contain configuration.
 
@@ -1277,7 +1696,7 @@ Example:
 
 ```js
 {
-  name: "LOW_STOCK_ALERT",
+  name: "LOW_STOCK_ALERTS",
   enabled: true,
   configuration: {
     defaultThreshold: 10
@@ -1297,17 +1716,84 @@ Another example:
 }
 ```
 
-This allows tenant-specific behavior without modifying application code.
+Configuration must be validated by the backend.
+
+A frontend must not be able to enable restricted capabilities simply by modifying a request.
 
 ---
 
-# 33. Feature Flags vs Capabilities
+# 51. Capability Dependencies
 
-Feature flags and business capabilities should remain conceptually separate.
+Capabilities may depend on other capabilities.
+
+Example:
+
+```text
+EXPIRY_TRACKING
+       ↓
+BATCH_TRACKING
+```
+
+or:
+
+```text
+RECIPE_CONSUMPTION
+       ↓
+INGREDIENT_INVENTORY
+```
+
+The platform should validate dependencies before enabling a capability.
+
+Example:
+
+```text
+Cannot enable RECIPE_CONSUMPTION
+
+without:
+
+INGREDIENT_INVENTORY
+```
+
+Dependency rules should be defined centrally rather than scattered throughout application code.
+
+---
+
+# 52. Capability Lifecycle
+
+Capabilities may have lifecycle states:
+
+```text
+AVAILABLE
+ENABLED
+DISABLED
+DEPRECATED
+```
+
+Example:
+
+```text
+EXPIRY_TRACKING
+       ↓
+AVAILABLE
+       ↓
+ENABLED
+       ↓
+DISABLED
+```
+
+A deprecated capability must not be silently removed when existing tenant data depends on it.
+
+Migration or retirement procedures should be defined before permanently removing a capability.
+
+---
+
+# 53. Feature Flags vs Capabilities
+
+Feature flags and business capabilities are different concepts.
 
 ### Capability
 
-Determines whether a business function exists.
+Represents a business function.
 
 ```text
 BATCH_TRACKING
@@ -1315,68 +1801,31 @@ BATCH_TRACKING
 
 ### Feature Flag
 
-Controls application rollout or experimental functionality.
+Controls product rollout or experimental behavior.
 
 ```text
 NEW_POS_UI
 ```
 
-A capability is part of the business/domain model.
+Therefore:
 
-A feature flag is primarily an application release/rollout mechanism.
+> **Capability = business/domain functionality.**
 
----
+> **Feature flag = application rollout mechanism.**
 
-# 34. Industry Configuration Example
-
-Example tenant:
-
-```js
-{
-  tenantId: "tenant_001",
-
-  industry: "CLOTHING",
-
-  capabilities: [
-    "PRODUCT_VARIANTS",
-    "BARCODE",
-    "DISCOUNTS",
-    "RETURNS"
-  ]
-}
-```
-
-Another tenant:
-
-```js
-{
-  tenantId: "tenant_002",
-
-  industry: "RESTAURANT",
-
-  capabilities: [
-    "MENU_MANAGEMENT",
-    "INGREDIENT_INVENTORY",
-    "RECIPE_CONSUMPTION",
-    "TABLE_MANAGEMENT",
-    "KITCHEN_WORKFLOW"
-  ]
-}
-```
-
-Both tenants use the same application and core backend.
+They should not be treated as interchangeable.
 
 ---
 
-# 35. Cross-Industry Features
+# 54. Cross-Industry Capabilities
 
-Some functionality may eventually be useful across multiple industries.
+Some functionality may eventually apply to multiple industries.
 
 Examples:
 
 ```text
 LOYALTY
-MULTI_LOCATION
+MULTI_STORE
 ONLINE_ORDERING
 DELIVERY
 STAFF_ATTENDANCE
@@ -1384,68 +1833,215 @@ CUSTOMER_CREDIT
 SUBSCRIPTIONS
 ```
 
-These should become reusable capabilities rather than belonging permanently to one industry.
+These should become reusable capabilities rather than permanently belonging to one industry.
 
 Example:
 
 ```text
-PHARMACY
-    + ONLINE_ORDERING
+SUPERMARKET
+      +
+ONLINE_ORDERING
 
 RESTAURANT
-    + ONLINE_ORDERING
+      +
+ONLINE_ORDERING
 
 CLOTHING
-    + ONLINE_ORDERING
+      +
+ONLINE_ORDERING
 ```
 
 ---
 
-# 36. Business Rules
+# 55. Adding a New Industry
 
-Industry capabilities may modify business rules, but core invariants must remain protected.
+When adding a new industry, follow a controlled process.
+
+### Step 1 — Identify shared functionality
+
+Reuse existing core modules:
+
+```text
+Products
+Inventory
+Purchasing
+Suppliers
+POS
+Sales
+Customers
+Payments
+Reports
+Analytics
+```
+
+### Step 2 — Identify unique requirements
+
+Example electronics store:
+
+```text
+Serial Numbers
+Warranty
+IMEI
+Repairs
+```
+
+### Step 3 — Define capabilities
+
+```text
+SERIAL_TRACKING
+WARRANTY_TRACKING
+IMEI_TRACKING
+REPAIR_WORKFLOW
+```
+
+### Step 4 — Implement industry-specific modules
+
+```text
+industry/electronics/
+
+serials/
+warranty/
+repairs/
+```
+
+### Step 5 — Define default configuration
+
+```text
+ELECTRONICS
+
+SERIAL_TRACKING
+WARRANTY_TRACKING
+IMEI_TRACKING
+REPAIR_WORKFLOW
+```
+
+### Step 6 — Validate tenant and store isolation
+
+Verify that:
+
+* Data remains tenant-scoped
+* Store scope is respected
+* RBAC works
+* Capability checks work
+* Existing industries remain unaffected
+
+---
+
+# 56. Business Rule Extensions
+
+Industry capabilities may extend business workflows, but core invariants must remain protected.
 
 Example:
 
 ```text
 Sale
  ↓
-Stock validation
+Stock Validation
  ↓
-Payment validation
+Payment Validation
  ↓
-Transaction
+Transactional Sale
  ↓
-Stock movement
+Stock Movement
 ```
 
 A pharmacy capability may add:
 
 ```text
-Prescription validation
-Batch validation
-Expiry validation
+Prescription Validation
+Batch Validation
+Expiry Validation
 ```
 
-before the sale is completed.
+A clothing capability may add:
+
+```text
+Variant Validation
+Size / Color Selection
+```
 
 A restaurant capability may add:
 
 ```text
-Table validation
-Kitchen order creation
-Recipe consumption
+Table Validation
+Kitchen Order Creation
+Recipe Consumption
 ```
 
-The shared transaction boundaries must remain reliable.
+The shared transaction boundary must remain reliable.
 
 ---
 
-# 37. Security
+# 57. Transaction Boundaries
 
-Industry capability checks must follow the same security architecture defined in `05-multi-tenancy.md`.
+Industry capabilities must not weaken transactional integrity.
 
-Request:
+For critical operations:
+
+```text
+Validate
+   ↓
+Begin Transaction
+   ↓
+Apply Business Changes
+   ↓
+Create Stock / Financial Records
+   ↓
+Create Audit Records Where Required
+   ↓
+Commit
+```
+
+External operations should not be performed inside the core database transaction.
+
+Avoid holding a database transaction open while calling:
+
+* Payment providers
+* AI providers
+* Email services
+* WhatsApp
+* Storage services
+* Other external APIs
+
+Post-commit work should use background jobs where appropriate.
+
+---
+
+# 58. Async Industry Operations
+
+Non-critical operations should execute asynchronously.
+
+Example:
+
+```text
+Sale Committed
+      ↓
+Post-Commit Event / Queue
+      ↓
+BullMQ Worker
+      ↓
+Analytics
+Notifications
+Invoice PDF
+AI Processing
+```
+
+Failure of an asynchronous operation should not roll back a successfully committed sale.
+
+Jobs should be designed for:
+
+* Retry
+* Idempotency
+* Failure handling
+* Observability
+
+---
+
+# 59. Security
+
+Industry capabilities follow the same security architecture as the core platform.
+
+Request flow:
 
 ```text
 Authentication
@@ -1453,6 +2049,8 @@ Authentication
 Tenant Membership
       ↓
 Tenant Context
+      ↓
+Store Scope
       ↓
 RBAC
       ↓
@@ -1463,25 +2061,64 @@ Validation
 Business Logic
 ```
 
-A user must not be able to enable or invoke a capability simply by modifying frontend requests.
+A user must not be able to:
+
+* Access another tenant's capability data
+* Access another store without permission
+* Enable restricted capabilities
+* Modify capability configuration without authorization
+* Bypass capability checks through direct API requests
 
 ---
 
-# 38. Testing Strategy
+# 60. Audit
 
-Every capability should have:
+Capability changes and important industry-specific business actions should be auditable where appropriate.
+
+Examples:
+
+```text
+Capability Enabled
+Capability Disabled
+Capability Configuration Changed
+Batch Adjusted
+Expiry Stock Marked
+Recipe Configuration Changed
+Variant Updated
+```
+
+Audit records should capture relevant information such as:
+
+```text
+tenantId
+storeId
+userId
+action
+entity
+entityId
+timestamp
+reason
+requestId
+```
+
+Audit logs are separate from technical application logs.
+
+---
+
+# 61. Testing Strategy
+
+Every implemented capability should be tested according to its risk and complexity.
 
 ### Unit Tests
 
-Test business rules independently.
-
-Example:
+Examples:
 
 ```text
 Expiry calculation
 Variant validation
 Recipe consumption
-Prescription requirement
+Offer calculation
+Capability dependency validation
 ```
 
 ### Integration Tests
@@ -1490,8 +2127,9 @@ Test interaction with:
 
 ```text
 PostgreSQL
-Redis
+Redis where relevant
 Core modules
+Capability modules
 ```
 
 ### API Tests
@@ -1503,83 +2141,135 @@ Authentication
 RBAC
 Capability access
 Tenant isolation
+Store isolation
 Validation
+Idempotency
 ```
 
 ### End-to-End Tests
 
-Test complete business workflows.
+Test complete workflows.
 
-Example:
+Initial supermarket example:
 
 ```text
 Create Product
       ↓
-Add Inventory
+Receive Stock
       ↓
-Create POS Sale
+Open POS
+      ↓
+Scan Product
+      ↓
+Create Sale
       ↓
 Process Payment
       ↓
 Update Inventory
       ↓
 Generate Invoice
+      ↓
+View Analytics
 ```
 
-Industry-specific E2E workflows should also be included.
+Future industries should receive their own E2E workflows when implemented.
 
 ---
 
-# 39. Industry Capability Testing Matrix
+# 62. Industry Testing Matrix
 
-| Capability      | Pharmacy | Supermarket | Clothing | Restaurant |
-| --------------- | -------: | ----------: | -------: | ---------: |
-| Products        |        ✓ |           ✓ |        ✓ |          ✓ |
-| Inventory       |        ✓ |           ✓ |        ✓ |          ✓ |
-| POS             |        ✓ |           ✓ |        ✓ |          ✓ |
-| Sales           |        ✓ |           ✓ |        ✓ |          ✓ |
-| Suppliers       |        ✓ |           ✓ |        ✓ |          ✓ |
-| Customers       |        ✓ |           ✓ |        ✓ |          ✓ |
-| Batch Tracking  |        ✓ |    Optional |        — |          — |
-| Expiry Tracking |        ✓ |    Optional |        — |   Optional |
-| Prescription    |        ✓ |           — |        — |          — |
-| Barcode         |        ✓ |           ✓ |        ✓ |   Optional |
-| Variants        | Optional |    Optional |        ✓ |   Optional |
-| Offers          | Optional |           ✓ |        ✓ |          ✓ |
-| Ingredients     |        — |           — |        — |          ✓ |
-| Recipes         |        — |           — |        — |          ✓ |
-| Tables          |        — |           — |        — |          ✓ |
-| Kitchen         |        — |           — |        — |          ✓ |
+The following matrix represents the **architecture target**, not a statement that every capability is already implemented.
 
-`Optional` means the capability can potentially be enabled depending on tenant requirements.
+| Capability      |     Supermarket | Pharmacy | Clothing | Restaurant |
+| --------------- | --------------: | -------: | -------: | ---------: |
+| Products        |               ✓ |   Future |   Future |     Future |
+| Inventory       |               ✓ |   Future |   Future |     Future |
+| POS             |               ✓ |   Future |   Future |     Future |
+| Sales           |               ✓ |   Future |   Future |     Future |
+| Suppliers       |               ✓ |   Future |   Future |     Future |
+| Customers       |               ✓ |   Future |   Future |     Future |
+| Barcode         |               ✓ |   Future |   Future |     Future |
+| Unit Management |               ✓ |   Future |   Future |     Future |
+| Batch Tracking  | Future/Optional |   Future |        — |          — |
+| Expiry Tracking | Future/Optional |   Future |        — |   Optional |
+| Prescription    |               — |   Future |        — |          — |
+| Variants        |        Optional | Optional |   Future |   Optional |
+| Offers          |               ✓ |   Future |   Future |     Future |
+| Ingredients     |               — |        — |        — |     Future |
+| Recipes         |               — |        — |        — |     Future |
+| Tables          |               — |        — |        — |     Future |
+| Kitchen         |               — |        — |        — |     Future |
+
+**Important:** “Future” means architecturally planned, not currently implemented.
 
 ---
 
-# 40. Definition of Done
+# 63. Initial Implementation Priority
 
-The industry capability architecture is considered complete when:
+Buzzsynx should follow this implementation order:
 
-* [ ] One application supports multiple industries
-* [ ] Core business modules are shared
-* [ ] Industry functionality is modular
+```text
+PHASE 1
+Shared Platform Core
+        ↓
+PHASE 2
+Supermarket Product + Inventory
+        ↓
+PHASE 3
+Supermarket Purchasing
+        ↓
+PHASE 4
+Supermarket POS + Sales
+        ↓
+PHASE 5
+Payments + Invoices + Returns
+        ↓
+PHASE 6
+Analytics + Reports
+        ↓
+PHASE 7
+AI Intelligence
+        ↓
+PHASE 8
+Production Hardening
+        ↓
+PHASE 9
+Future Industry Capabilities
+```
+
+The objective is to complete one coherent business workflow before expanding horizontally into additional industries.
+
+---
+
+# 64. Definition of Done
+
+The industry capability architecture is considered structurally complete when:
+
+* [ ] Shared core modules are defined
+* [ ] Supermarket is identified as the first complete industry
+* [ ] Future industries are separated from MVP scope
 * [ ] Tenant industry is stored in trusted backend configuration
-* [ ] Capabilities can be enabled/disabled
+* [ ] Capabilities are configurable per tenant
+* [ ] Store scope is supported
 * [ ] Backend capability checks are implemented
-* [ ] Frontend dynamically reflects capabilities
-* [ ] Industry-specific data remains tenant-scoped
+* [ ] RBAC and capability checks work together
+* [ ] Frontend reflects enabled capabilities
+* [ ] Industry-specific data is tenant-scoped
+* [ ] Store-specific data is store-scoped where required
 * [ ] Capability dependencies are validated
-* [ ] Industry-specific workflows have tests
-* [ ] AI respects industry context
+* [ ] Critical business rules remain server-authoritative
+* [ ] Industry-specific workflows have appropriate tests
+* [ ] AI respects tenant, store and capability context
 * [ ] Analytics supports industry-specific metrics
-* [ ] New industries can be added without rewriting core modules
-* [ ] No widespread industry-specific `if/else` logic exists
-* [ ] Documentation exists for every supported capability
+* [ ] New capabilities can be introduced without rewriting the shared core
+* [ ] No widespread industry-specific conditional logic exists
+* [ ] Documentation exists for implemented capabilities
 
 ---
 
-# 41. Architectural Principle
+# 65. Architectural Principle
 
-Buzzsynx should not think:
+Buzzsynx should not be designed as:
 
 ```text
 Pharmacy App
@@ -1588,48 +2278,119 @@ Clothing App
 Restaurant App
 ```
 
-It should think:
+It should be designed as:
 
 ```text
-                 BUZZSYNX
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-     Shared Core          Capabilities
-          │                     │
-          │       ┌─────────────┼─────────────┐
-          │       │             │             │
-          │    Pharmacy     Clothing     Restaurant
-          │       │             │             │
-          └───────┴─────────────┴─────────────┘
-                     │
-                  Tenants
+                     BUZZSYNX
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+         Shared Core        Capabilities
+              │                   │
+              │          ┌────────┼────────┐
+              │          │        │        │
+              │     Supermarket Pharmacy Clothing
+              │          │        │        │
+              │          └────────┼────────┘
+              │                   │
+              └──────────┬────────┘
+                         │
+                      Tenants
+                         │
+                    Stores / Branches
 ```
 
-The core platform remains stable while capabilities evolve.
+The shared core remains stable.
+
+Capabilities evolve independently.
+
+Tenants activate the functionality relevant to their business.
 
 ---
 
-# 42. Final Principle
+# 66. Final Principle
 
-> **Buzzsynx is a capability-driven multi-industry SaaS platform.**
+> **Buzzsynx is a capability-driven, multi-tenant business operations SaaS platform designed for multiple industries but implemented incrementally.**
 
-The platform provides a shared business engine for products, inventory, purchasing, POS, sales, customers, payments, analytics and AI.
+The platform provides a shared business engine for:
 
-Industry-specific requirements are implemented as modular capabilities that can be enabled according to the tenant's industry and business needs.
+```text
+Products
+Inventory
+Purchasing
+POS
+Sales
+Customers
+Payments
+Invoices
+Analytics
+AI
+```
 
-This allows Buzzsynx to support:
+Industry-specific requirements are implemented as modular capabilities.
+
+The first complete implementation is:
+
+```text
+Supermarket / Grocery
+```
+
+Future capability sets may include:
+
+```text
+Pharmacy
+Clothing
+Restaurant
+Electronics
+Other Industries
+```
+
+The architecture therefore follows:
 
 ```text
 One Codebase
-     ↓
+      ↓
 One Shared Core
-     ↓
-Multiple Industries
-     ↓
-Multiple Capabilities
-     ↓
+      ↓
+Tenant + Store Context
+      ↓
+Configurable Capabilities
+      ↓
+Industry-Specific Extensions
+      ↓
 Multiple Independent Tenants
 ```
 
-without sacrificing maintainability, tenant isolation, security, or future scalability.
+while preserving:
+
+* Maintainability
+* Tenant isolation
+* Store isolation
+* Security
+* Transactional integrity
+* Extensibility
+* AI safety
+* Future scalability
+
+---
+
+# 67. Source-of-Truth Principle
+
+The industry capability system must follow the broader Buzzsynx architecture principle:
+
+> **The database knows what happened.
+> The application enforces what is allowed.
+> Capabilities determine which business functions are available.
+> AI helps understand what happened and what might happen next.**
+
+AI, frontend configuration, feature flags, or industry labels must never override authoritative business rules.
+
+---
+
+# 68. Closing Architecture Statement
+
+Buzzsynx does not need to build four different products to become a multi-industry platform.
+
+It needs to build **one strong business engine**, prove it through the supermarket vertical, and then extend that engine through carefully isolated capabilities.
+
+> **Build one industry completely. Design the platform for many.**
