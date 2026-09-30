@@ -2,71 +2,145 @@
 
 **Document:** Development Standards & Engineering Guidelines
 **Project:** Buzzsynx
-**Version:** 1.0
-**Status:** Development Standard
+**Version:** 0.2
+**Status:** Architecture-Aligned Development Standard
 **Architecture:** Multi-Tenant Modular Monolith
+**Initial Product Scope:** Supermarket / Grocery
 **Primary Stack:** Next.js, React, Node.js, Express, PostgreSQL, Prisma, Redis, BullMQ
-**Engineering Goal:** Maintainable, secure, scalable, observable, production-oriented software
+**Engineering Goal:** Maintainable, secure, reliable, observable, production-oriented software
 
 ---
 
 # 1. Purpose
 
-This document defines the engineering standards that must be followed while developing Buzzsynx.
+This document defines the engineering standards that govern Buzzsynx development.
 
-The purpose is to ensure that:
+Its purpose is to ensure that:
 
-* Code remains maintainable.
 * Architecture remains consistent.
 * Business logic remains predictable.
+* Tenant and store isolation is enforced.
 * Security is built into every feature.
-* Multi-tenancy is enforced consistently.
+* Database integrity is protected.
 * AI-assisted development does not introduce architectural shortcuts.
-* New features follow established patterns.
-* Technical debt is controlled.
-* The codebase remains understandable as the project grows.
+* Background processing remains reliable.
+* Observability is built into important workflows.
+* Technical debt remains controlled.
+* Documentation stays aligned with implementation.
+* The codebase remains understandable as Buzzsynx evolves.
 
-This document acts as the project's **engineering rulebook**.
+This document acts as the project's engineering rulebook.
 
 ---
 
-# 2. Core Development Philosophy
+# 2. Current Scope
 
-Buzzsynx should be developed according to the following principles:
+Buzzsynx is being developed as a **multi-tenant business operations platform**.
+
+The **supermarket/grocery workflow is the initial complete implementation and canonical MVP vertical slice**.
+
+Future industries such as:
+
+* Pharmacy
+* Clothing
+* Restaurant
+* Electronics
+* Clinic
+* Hardware
+* Poultry
+
+may be introduced later through the capability architecture.
+
+They must not be treated as simultaneously completed MVP modules.
+
+The development standard therefore follows:
+
+> **Build the shared core correctly first, complete the supermarket workflow, then extend through capabilities when justified.**
+
+---
+
+# 3. Core Development Philosophy
+
+Buzzsynx follows these principles:
 
 > **Simple before complex.**
 
 > **Explicit before clever.**
 
-> **Reusable before duplicated.**
-
-> **Secure by default.**
-
-> **Business logic before UI convenience.**
+> **Business correctness before UI convenience.**
 
 > **Database integrity before application assumptions.**
 
-> **Observability from the beginning.**
+> **Secure by default.**
 
-> **AI assists development; engineering decisions remain deliberate.**
+> **Tenant isolation by design.**
+
+> **Deterministic logic for critical business operations.**
+
+> **Observable from the beginning.**
+
+> **AI assists development and intelligence; it does not replace engineering authority.**
+
+> **Do not introduce architecture complexity without a real requirement.**
 
 ---
 
-# 3. Architecture Standard
+# 4. Architecture Standard
 
 Buzzsynx uses a:
 
 > **Multi-Tenant Modular Monolith**
 
-The codebase should be organized around business domains.
+The system is one deployable application architecture with clear business-module boundaries.
 
-Examples:
+Conceptually:
 
-```text id="2m1h8v"
+```text
+Next.js Frontend
+       ↓
+Express API
+       ↓
+Authentication
+       ↓
+Tenant / Store Context
+       ↓
+RBAC + Capability Authorization
+       ↓
+Business Modules
+       ↓
+PostgreSQL
+```
+
+Supporting infrastructure:
+
+```text
+Redis
+ ├── Cache
+ ├── Temporary Data
+ ├── Rate Limiting
+ └── BullMQ Backend
+
+BullMQ
+ └── Background Workers
+```
+
+The architecture should remain modular enough that individual modules can evolve independently and, if genuinely required in the future, be extracted into separate services.
+
+Microservices are not the current default.
+
+---
+
+# 5. Initial Business Modules
+
+The current architecture may contain modules such as:
+
+```text
 auth
 tenants
 users
+memberships
 roles
+stores
 products
 inventory
 purchases
@@ -81,287 +155,431 @@ ai
 notifications
 ```
 
-Each module should have clear responsibilities.
+The exact module list may evolve.
+
+A module should exist because it represents a meaningful business boundary, not simply because a folder is required.
 
 ---
 
-# 4. Module Boundary Rules
+# 6. Module Boundary Rules
 
-A module should own its business logic.
+Each module should own its relevant business logic.
 
 Example:
 
-```text id="xw22o0"
-Inventory Module
-    ├── Controller
-    ├── Service
-    ├── Repository
-    ├── Validation
-    └── Domain Logic
+```text
+Inventory
+├── Controller
+├── Service
+├── Repository
+├── Validation
+└── Domain/Application Logic
 ```
 
-The POS module may request inventory operations through an appropriate application/service boundary.
+Other modules should communicate through defined application/service boundaries.
 
-It should not directly manipulate inventory tables everywhere in the codebase.
+For example:
+
+```text
+POS
+ ↓
+Inventory Service
+ ↓
+Inventory Logic
+ ↓
+Repository
+ ↓
+PostgreSQL
+```
+
+Avoid arbitrary direct manipulation of another module's tables.
 
 ### Rule
 
-> **Modules communicate through defined application boundaries, not through arbitrary database manipulation.**
+> **Modules communicate through defined application boundaries, not through uncontrolled database access.**
 
 ---
 
-# 5. Separation of Responsibilities
+# 7. Layered Responsibility
 
-The following separation should be maintained:
+Where appropriate, backend modules should follow:
 
-```text id="8at8jj"
+```text
+Route
+ ↓
+Middleware
+ ↓
 Controller
-   ↓
-Service
-   ↓
-Repository
-   ↓
-Database
+ ↓
+Service / Use Case
+ ↓
+Repository / Data Access
+ ↓
+PostgreSQL
 ```
+
+### Route / Middleware
+
+Responsible for:
+
+* Routing
+* Authentication
+* Tenant/store context
+* Permission checks
+* Capability checks
+* Request-level controls
 
 ### Controller
 
 Responsible for:
 
-* Request handling
-* Authentication context access
-* Input parsing
-* Calling services
-* Returning responses
+* Reading request data
+* Calling application services
+* Mapping results to API responses
+* Passing errors to centralized handling
 
 Controllers should remain thin.
 
-### Service
+### Service / Use Case
 
 Responsible for:
 
 * Business rules
 * Workflow orchestration
-* Authorization checks where applicable
-* Transaction coordination
-* Calling repositories and domain services
+* Transaction boundaries
+* Business validations
+* Cross-module coordination
 
-### Repository
+### Repository / Data Access
 
 Responsible for:
 
-* Database queries
+* Prisma queries
 * Persistence
-* Data retrieval
-* Tenant-scoped database operations
+* Tenant/store-scoped retrieval
+* Data access patterns
 
-### Utility
-
-Responsible for:
-
-* Generic reusable functionality
-* Formatting
-* Small deterministic helpers
-
-Utilities should not contain hidden business rules.
+Repositories should not become a second business-rule engine.
 
 ---
 
-# 6. Business Logic Rules
+# 8. Transaction Ownership
 
-Business logic must not be duplicated across:
+Transaction boundaries should be owned by the application service/use-case that coordinates the business operation.
+
+Example:
+
+```text
+createSale()
+    ↓
+DB Transaction
+    ├── Create Sale
+    ├── Create Sale Items
+    ├── Record Payment Allocations
+    ├── Create Stock Movements
+    ├── Update Stock Balance
+    ├── Create Invoice Record
+    └── Create Outbox Event
+    ↓
+Commit
+    ↓
+Async Processing
+```
+
+Do not scatter unrelated transaction boundaries across controllers and repositories.
+
+External services must not be called from inside critical database transactions.
+
+---
+
+# 9. Business Logic Rules
+
+Critical business logic must have an authoritative implementation.
+
+Avoid duplicating rules across:
 
 * React components
-* API controllers
-* Random utility files
-* Database queries
-* Background workers
+* Controllers
+* Services
+* Reports
+* Workers
+* Utility functions
 
-For example, sale total calculation should have one authoritative implementation.
+For example, sale totals should have one authoritative business calculation.
 
-Bad:
-
-```text id="x3gb6c"
-POS calculates total
-Invoice calculates total differently
-Report calculates total differently
+```text
+Authoritative Sale Calculation
+          ↓
+     Sale Workflow
+       /      \
+    Invoice   Reports
 ```
 
-Good:
-
-```text id="kq8x3j"
-Shared business calculation
-       ↓
-POS
-Invoice
-Reports
-```
+Reports should consume recorded business data rather than independently inventing a different calculation.
 
 ---
 
-# 7. Deterministic Business Logic
+# 10. Deterministic Business Logic
 
 Critical business operations must remain deterministic.
 
-AI should not control:
+AI must not become the authority for:
 
-* Payment totals
+* Product prices
+* Sale totals
 * Tax calculations
+* Discounts
 * Stock quantities
-* Authorization
+* Payment state
 * Invoice numbering
+* Authorization
 * Financial calculations
+* Inventory movements
 * Transaction integrity
 
 Example:
 
-```text id="w1g3l0"
-Product Price
-+
+```text
+Price
+ +
 Quantity
-+
+ -
 Discount
-+
+ +
 Tax
-=
+ =
 Deterministic Total
 ```
 
-AI may analyze the resulting data but should not become the authority for the calculation.
+AI may explain, analyze, predict, summarize, or recommend based on the resulting data.
 
 ---
 
-# 8. Multi-Tenancy Standard
+# 11. Multi-Tenancy Standard
 
-Every tenant-owned operation must be tenant-aware.
+Buzzsynx follows:
 
-The backend must resolve tenant context from trusted authentication/membership information.
-
-Never trust:
-
-```text id="h3t0k2"
-tenantId from request body
-tenantId from query
-tenantId from frontend state
-tenantId from URL alone
+```text
+Super Admin
+     ↓
+Tenant / Business
+     ↓
+Store / Branch
+     ↓
+Membership
+     ↓
+User
 ```
 
-as the source of authorization.
+A user belongs to a tenant through a membership.
 
-The expected context is conceptually:
+Store access must also be validated where applicable.
 
-```js
-{
-  userId,
-  tenantId,
-  role,
-  permissions,
-  capabilities
-}
+The trusted request context should conceptually contain:
+
+```text
+userId
+tenantId
+membershipId
+activeStoreId
+roles
+permissions
+capabilities
 ```
+
+### Critical Rule
+
+> **Never trust tenantId supplied by the client as the source of authorization.**
+
+Tenant context must be derived from authenticated membership and server-side context.
 
 ---
 
-# 9. Tenant-Scoped Data Access
+# 12. Store Scope
 
-Tenant-owned queries must always include tenant scope.
+Multi-store support is part of the architecture even though the initial MVP may begin with one store.
 
-Example:
+Store-owned data must be appropriately scoped.
 
-```js
-await prisma.product.findFirst({
-  where: {
-    id: productId,
-    tenantId
-  }
-});
+Examples:
+
+```text
+Store-scoped
+├── Stock
+├── Inventory Movements
+├── Sales
+├── Purchases / Receiving
+├── Payments
+├── Registers
+└── Store-specific pricing/availability
 ```
 
-Avoid:
+Tenant-wide data may include:
 
-```js
-await prisma.product.findUnique({
-  where: {
-    id: productId
-  }
-});
+```text
+Products
+Categories
+Brands
+Suppliers
+Tenant Settings
+Memberships
 ```
 
-when the operation requires tenant isolation and the schema/query pattern does not otherwise guarantee it.
+The exact scope of each entity must follow the database design.
 
 ### Rule
 
-> **Never rely on the frontend to provide tenant isolation.**
+> **Tenant scope and store scope are separate authorization boundaries.**
 
 ---
 
-# 10. Cross-Tenant Security
+# 13. Tenant-Scoped Data Access
 
-Every feature must be evaluated for cross-tenant access.
+Tenant-owned queries must be tenant-safe.
 
-Before considering a feature complete, verify:
+Conceptually:
 
-```text id="o1u5ip"
+```js
+where: {
+  id: resourceId,
+  tenantId
+}
+```
+
+For store-owned records:
+
+```js
+where: {
+  id: resourceId,
+  tenantId,
+  storeId
+}
+```
+
+Avoid generic unrestricted access such as:
+
+```js
+findById(id)
+```
+
+for tenant-owned resources unless the calling layer has already established equivalent scope through a trusted, enforceable mechanism.
+
+---
+
+# 14. Cross-Tenant and Cross-Store Security
+
+Every feature must be evaluated for isolation.
+
+Verify:
+
+```text
 Can Tenant A read Tenant B data?
-Can Tenant A update Tenant B data?
+Can Tenant A modify Tenant B data?
 Can Tenant A delete Tenant B data?
-Can Tenant A access Tenant B files?
-Can Tenant A access Tenant B analytics?
-Can Tenant A trigger Tenant B operations?
-Can Tenant A access Tenant B AI context?
+
+Can Store A access Store B stock?
+Can Store A access Store B sales?
+Can Store A access Store B reports?
+
+Can a user access a store they are not assigned to?
+Can a tenant access another tenant's files?
+Can AI receive another tenant's data?
 ```
 
-The answer must be **no**, unless the operation is explicitly authorized as a platform-level operation.
+Unless explicitly authorized as a platform operation, the answer must be **no**.
 
 ---
 
-# 11. RBAC Standard
+# 15. Platform Administration
 
-Authorization must be enforced on the backend.
+Super Admin is a platform-level role.
 
-Frontend role checks are for user experience only.
+Super Admin access must not be treated as an ordinary tenant membership role.
 
-Example:
+Platform operations should use explicit platform authorization and should be auditable.
 
-```text id="8m5p0j"
-Frontend
-   ↓
-Hide button
+Examples:
 
-Backend
-   ↓
-Actually enforce permission
+```text
+Tenant suspension
+Tenant activation
+Capability enablement
+Platform configuration
+Platform-level support operations
 ```
 
-Never consider a feature secure merely because a button is hidden.
+Platform access must not accidentally become a mechanism for bypassing audit or security controls.
 
 ---
 
-# 12. Capability Standard
+# 16. RBAC Standard
 
-Industry capabilities and permissions are separate concepts.
+Current business roles are:
+
+```text
+Super Admin
+Owner
+Admin / Manager
+Cashier
+Accountant
+Store Staff
+```
+
+Authorization should be permission-based rather than relying only on role names.
+
+Conceptually:
+
+```text
+User
+ ↓
+Membership
+ ↓
+Role
+ ↓
+Permissions
+```
+
+Frontend role checks are for user experience.
+
+Backend authorization is the actual security boundary.
+
+---
+
+# 17. Capability Standard
+
+Industry capabilities and authorization are different concerns.
+
+A successful operation may require:
+
+```text
+Tenant Capability
+        +
+User Permission
+        +
+Resource Scope
+```
 
 For example:
 
-```text id="x4s6r3"
-Tenant Industry
-      ↓
-PHARMACY
-
-Capability
-      ↓
+```text
+Tenant Capability
+       ↓
 EXPIRY_TRACKING
 
 User Permission
-      ↓
+       ↓
 INVENTORY_VIEW
+
+Store Scope
+       ↓
+Store A
 ```
 
-A user needs both the appropriate business capability and authorization to perform a restricted operation.
+Feature flags, subscription entitlements, capabilities, and permissions should not be treated as interchangeable concepts.
 
 ---
 
-# 13. Validation Standard
+# 18. Validation Standard
 
 All external input must be validated.
 
@@ -373,45 +591,78 @@ Sources include:
 * Headers where applicable
 * Uploaded files
 * Webhooks
-* External API responses
+* External provider responses
 
-Validation should occur before business logic executes.
+Use the project's validation layer, currently based on **Zod** where appropriate.
+
+Validation should happen before business logic processes untrusted input.
 
 ---
 
-# 14. Error Handling
+# 19. Mass Assignment Protection
 
-Errors should be handled consistently.
+Never blindly pass client-provided objects into database updates.
 
-Avoid returning raw internal errors to clients.
+Avoid:
 
-Bad:
-
-```text id="v0cv4v"
-PrismaClientKnownRequestError...
+```js
+prisma.product.update({
+  data: req.body
+});
 ```
 
-Prefer a controlled response such as:
+Prefer explicit field selection.
 
-```json id="2d50av"
+The client must not be able to modify protected fields such as:
+
+```text
+tenantId
+storeId
+createdBy
+system status
+ownership
+audit fields
+```
+
+unless the operation explicitly allows it.
+
+---
+
+# 20. Error Handling
+
+API errors must be controlled and consistent.
+
+Never expose:
+
+* Prisma internals
+* Database credentials
+* Stack traces
+* Internal service details
+* Secrets
+* Provider credentials
+
+Example:
+
+```json
 {
   "success": false,
   "error": {
     "code": "PRODUCT_NOT_FOUND",
-    "message": "Product not found"
+    "message": "Product not found",
+    "requestId": "req_123"
   }
 }
 ```
 
-Internal logs may contain additional technical information.
+Internal technical details belong in protected logs.
 
 ---
 
-# 15. Error Categories
+# 21. Error Categories
 
-Use consistent error categories such as:
+Use stable error categories/codes where useful:
 
-```text id="5zy3x6"
+```text
 VALIDATION_ERROR
 AUTHENTICATION_ERROR
 AUTHORIZATION_ERROR
@@ -423,83 +674,126 @@ EXTERNAL_SERVICE_ERROR
 PAYMENT_ERROR
 AI_ERROR
 QUEUE_ERROR
+RATE_LIMIT_ERROR
 INTERNAL_ERROR
 ```
 
-Error codes should be stable enough for frontend handling and operational monitoring.
+The exact code set may evolve.
+
+Error codes should remain stable enough for frontend behavior and operational monitoring.
 
 ---
 
-# 16. API Standards
+# 22. API Standards
 
-API design should remain consistent across modules.
+API contracts should remain consistent.
 
-Example:
+Preferred versioning:
 
-```text id="0q5p4k"
-GET    /api/products
-GET    /api/products/:id
-POST   /api/products
-PATCH  /api/products/:id
-DELETE /api/products/:id
+```text
+/api/v1/...
 ```
 
-Use HTTP methods according to their intended purpose.
+Examples:
 
-Responses should follow a consistent structure.
+```text
+GET    /api/v1/products
+GET    /api/v1/products/:id
+POST   /api/v1/products
+PATCH  /api/v1/products/:id
+```
 
-Example:
+Store and membership operations should follow the established tenant/store architecture.
 
-```json id="o7m10c"
+Avoid duplicate endpoints representing the same business operation.
+
+For example, POS should not create a separate competing sale implementation if `/sales` is the canonical sale domain.
+
+---
+
+# 23. API Response Standards
+
+Successful responses may follow:
+
+```json
 {
   "success": true,
-  "data": {}
+  "data": {},
+  "meta": {}
 }
 ```
 
-For errors:
+Errors should follow a consistent structure:
 
-```json id="5h0e4c"
+```json
 {
   "success": false,
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "Invalid product data"
+    "message": "Invalid product data",
+    "requestId": "req_123",
+    "details": {}
   }
 }
 ```
 
+Do not expose internal implementation details.
+
 ---
 
-# 17. Database Standards
+# 24. Database Standards
 
 PostgreSQL is the authoritative business data store.
 
-Database design should prioritize:
+Database design must prioritize:
 
-* Data integrity
 * Referential integrity
-* Appropriate constraints
+* Constraints
 * Appropriate indexes
 * Transaction safety
 * Tenant isolation
+* Store isolation
+* Data consistency
+* Auditability where required
 
-Do not use application code alone to enforce rules that should also be protected by database constraints where practical.
+Application logic should not be the only protection for critical invariants when database constraints can enforce them.
 
 ---
 
-# 18. Database Naming
+# 25. Prisma Standards
 
-Use predictable naming conventions.
+Prisma is the primary PostgreSQL data-access layer.
+
+Use Prisma consistently with the project's established architecture.
+
+Avoid:
+
+* Scattered raw SQL without justification
+* Duplicate data-access patterns
+* Unscoped tenant queries
+* Generic unrestricted repository methods for tenant-owned data
+
+Raw SQL may be used when there is a documented technical reason, such as a performance-sensitive query or PostgreSQL-specific capability.
+
+---
+
+# 26. Database Naming
+
+Use predictable, descriptive naming.
 
 Examples:
 
-```text id="z12w7o"
+```text
 users
 tenants
+stores
 tenant_memberships
+membership_stores
 products
-inventory
+categories
+brands
+suppliers
+stock_balances
 stock_movements
 sales
 sale_items
@@ -508,57 +802,63 @@ purchase_items
 customers
 payments
 invoices
+audit_logs
 ```
 
-Names should be descriptive and consistent.
+Names should remain consistent with the actual Prisma schema.
 
 ---
 
-# 19. IDs
+# 27. IDs
 
-Use a consistent ID strategy across the application.
+Use one documented ID strategy consistently.
 
 IDs should:
 
 * Be unique.
-* Be difficult to guess where appropriate.
+* Be safe to expose where appropriate.
+* Avoid unnecessary predictability for externally exposed resources.
 * Remain consistent across APIs and database models.
 
-Do not introduce multiple ID strategies without a documented reason.
+Do not introduce multiple ID strategies without a clear reason.
 
 ---
 
-# 20. Database Transactions
+# 28. Database Transactions
 
-Transactions must be used for operations where multiple database changes must succeed or fail together.
+Use transactions when multiple changes must succeed or fail together.
 
-Critical examples:
+For example, a completed sale may transactionally coordinate:
 
-```text id="n5qzgj"
+```text
 Sale
 +
 Sale Items
 +
-Payment
+Payment Allocations
 +
-Stock Movement
+Stock Movements
 +
-Inventory Update
+Stock Balance Updates
 +
-Invoice
+Invoice Record
++
+Outbox Event
 ```
 
-These operations should be designed carefully so that partial success does not leave the system inconsistent.
+The exact transaction boundary must remain short and deterministic.
+
+Do not perform external API calls inside the transaction.
 
 ---
 
-# 21. Inventory Standards
+# 29. Inventory Standards
 
-Inventory must use the stock movement model.
+Inventory is authoritative through the stock movement model.
 
-Example:
+Canonical movement types include:
 
-```text id="n6t8cm"
+```text
 PURCHASE
 SALE
 RETURN
@@ -568,162 +868,221 @@ EXPIRY
 ADJUSTMENT
 ```
 
-Inventory changes should be traceable.
+Inventory changes should be traceable to a business event.
 
-Do not silently modify stock without an appropriate business event or adjustment record.
+Do not silently change stock quantities.
+
+A stock adjustment should record the reason and relevant actor/context.
 
 ---
 
-# 22. Financial Standards
+# 30. Inventory Concurrency
+
+Inventory operations must account for concurrent changes.
+
+For example:
+
+```text
+Cashier A → attempts sale
+Cashier B → attempts sale
+        ↓
+Same stock
+        ↓
+Database-controlled validation/update
+```
+
+Do not rely on cached stock values for final inventory authorization.
+
+Redis may improve lookup performance, but PostgreSQL remains authoritative for critical stock validation and mutation.
+
+---
+
+# 31. Financial Standards
 
 Financial calculations must be deterministic.
 
-Do not use floating-point arithmetic carelessly for monetary values.
+Avoid careless floating-point arithmetic for monetary values.
 
-The chosen representation must be consistent across:
+Define one application-wide monetary representation and use it consistently across:
 
 * Products
 * Sales
 * Purchases
 * Payments
-* Taxes
 * Discounts
+* Taxes
 * Invoices
 * Reports
 
-All monetary calculations should use one defined application-wide approach.
+The chosen representation must align with PostgreSQL, Prisma, JavaScript, and provider integration behavior.
 
 ---
 
-# 23. Payment Standards
+# 32. Payment Standards
 
 Payment operations require additional safeguards.
 
+* Never trust frontend payment success alone.
 * Verify payment status server-side.
 * Verify provider webhooks.
+* Validate webhook signatures.
 * Prevent duplicate processing.
-* Use idempotency where appropriate.
-* Never trust client-side payment success alone.
-* Never expose sensitive payment credentials.
+* Use idempotency.
 * Record payment state transitions.
+* Never store raw card credentials.
+* Keep external payment calls outside database transactions.
+
+External gateway status should be reconciled using provider events/webhooks where applicable.
 
 ---
 
-# 24. Idempotency
+# 33. Idempotency Standard
 
-Operations that may be retried must be designed to avoid duplicate effects.
+Operations that may be retried must be designed to prevent duplicate business effects.
 
 Important examples:
 
-* Payments
-* Webhooks
-* Queue jobs
-* Notifications
-* Inventory operations
-* External API requests
+```text
+Payments
+Webhooks
+Sale creation where retry is possible
+Inventory operations
+Queue jobs
+Notifications
+External API operations
+```
 
-Example:
+Conceptually:
 
-```text id="z4x9d7"
-Payment Request
-      ↓
+```text
+Request
+  ↓
 Idempotency Key
-      ↓
+  ↓
+Check Existing Operation
+  ↓
 Process Once
-      ↓
+  ↓
 Retry
-      ↓
+  ↓
 Return Existing Result
 ```
 
+Idempotency must be enforced at the appropriate application/database boundary, not merely stored in frontend state.
+
 ---
 
-# 25. Redis Standards
+# 34. Redis Standards
 
-Redis is used for:
+Redis is supporting infrastructure.
+
+It may be used for:
 
 * Caching
 * Temporary data
 * Rate limiting
-* Distributed coordination where required
+* Queue infrastructure
+* Distributed coordination where genuinely required
 
 Redis must not become the source of truth for:
 
 * Inventory
-* Payments
 * Sales
+* Payments
 * Invoices
 * Financial records
+* Tenant ownership
 
-PostgreSQL remains authoritative.
+> **PostgreSQL owns business truth.**
 
 ---
 
-# 26. Cache Standards
+# 35. Cache Standards
 
 Use cache-aside where appropriate:
 
-```text id="3t1xwd"
+```text
 Request
-  ↓
-Check Cache
-  ↓
+ ↓
+Redis
+ ↓
 Hit → Return
-  ↓
+ ↓
 Miss
-  ↓
+ ↓
 PostgreSQL
-  ↓
+ ↓
 Cache Result
-  ↓
+ ↓
 Return
 ```
 
-Cache keys must be tenant-aware.
-
-Example:
-
-```text id="k17c3m"
-tenant:{tenantId}:products:{productId}
-```
-
-Caching should have:
-
-* Appropriate TTL
-* Clear invalidation rules
-* Failure fallback
-
----
-
-# 27. BullMQ Standards
-
-Background jobs should be used for operations that do not need to block the main request.
+Cache keys must include appropriate scope.
 
 Examples:
 
-* AI processing
-* Emails
-* Notifications
-* Reports
-* Analytics
-* Scheduled processing
+```text
+tenant:{tenantId}:products:{productId}
 
-Jobs should include appropriate context:
+tenant:{tenantId}:store:{storeId}:dashboard
 
-```js
-{
-  tenantId,
-  userId,
-  jobType,
-  resourceId
-}
+tenant:{tenantId}:store:{storeId}:analytics
 ```
+
+Caching must define:
+
+* TTL
+* Invalidation behavior
+* Failure fallback
+* Scope
+* Staleness tolerance
+
+Never use stale cache data as final authority for critical POS stock validation.
 
 ---
 
-# 28. Queue Reliability
+# 36. Cache Invalidation
 
-Jobs should support:
+Business data should be invalidated after successful database commit.
+
+For important asynchronous propagation, use reliable event mechanisms such as a transactional outbox where required.
+
+Do not assume:
+
+```text
+DB Commit
+ ↓
+Redis Invalidate
+```
+
+is automatically reliable.
+
+If invalidation fails, TTL/rebuild mechanisms and retryable event processing should allow the system to recover.
+
+---
+
+# 37. BullMQ Standards
+
+BullMQ is used for asynchronous work that should not block critical business requests.
+
+Initial suitable workloads include:
+
+* AI processing
+* Notifications
+* Email
+* Reports
+* Analytics processing
+* PDF generation
+* Scheduled maintenance
+* Other non-critical post-commit work
+
+Do not queue work simply because a queue exists.
+
+---
+
+# 38. Queue Reliability
+
+Background jobs should support:
 
 * Retry
 * Backoff
@@ -731,171 +1090,294 @@ Jobs should support:
 * Failure handling
 * Monitoring
 * Appropriate concurrency
+* Controlled payload size
 
-Workers must never assume that a job will execute exactly once.
+Workers must assume that jobs can be:
+
+* Retried
+* Duplicated
+* Delayed
+* Interrupted
+* Processed after application restart
+
+Exactly-once execution should not be assumed.
 
 ---
 
-# 29. AI Development Standards
+# 39. Async Event Standard
 
-AI must remain behind a clear application boundary.
+For important business events, the preferred architecture is:
 
-Recommended separation:
-
-```text id="0n9lqe"
-src/lib/ai
-      ↓
-AI Provider / Infrastructure
-
-src/server/modules/ai
-      ↓
-AI Business Logic
+```text
+Business Transaction
+       ↓
+Database Transaction
+       ↓
+Outbox Event
+       ↓
+Commit
+       ↓
+Publisher
+       ↓
+BullMQ
+       ↓
+Worker
 ```
 
-AI provider-specific code should not spread throughout business modules.
+For lower-risk best-effort work, direct post-commit enqueueing may be acceptable.
+
+The choice should be based on business reliability requirements.
 
 ---
 
-# 30. AI Safety
+# 40. Worker Context
 
-AI must not have unrestricted access to:
+Jobs should contain only the information required for processing.
 
-* PostgreSQL
-* Redis
-* Files
-* Internal APIs
-* Administrative operations
+Where relevant:
 
-AI tool calling must use explicitly approved application-level tools.
+```js
+{
+  tenantId,
+  storeId,
+  resourceId,
+  jobType,
+  jobVersion,
+  idempotencyKey
+}
+```
 
-Example:
+Avoid unnecessary:
 
-```text id="x6u7pr"
+* Secrets
+* Large objects
+* Sensitive personal data
+* Full database records
+
+Workers must perform tenant/store-scoped database access using trusted job context.
+
+If a job originated from a user action, actor information may be retained for audit/correlation where appropriate.
+
+---
+
+# 41. AI Development Standards
+
+AI must remain behind a controlled application boundary.
+
+Conceptually:
+
+```text
+AI Business Module
+       ↓
+AI Service
+       ↓
+Provider Adapter
+       ↓
+External AI Provider
+```
+
+Provider-specific code should not spread throughout unrelated business modules.
+
+The AI layer should support changing providers without rewriting core business logic where practical.
+
+---
+
+# 42. AI Authority Boundary
+
+AI is an intelligence layer, not the authority for critical business state.
+
+AI must not independently determine:
+
+```text
+Payment completion
+Stock mutation
+Invoice numbering
+Tax calculation
+Financial totals
+Authorization
+Tenant ownership
+Critical database mutations
+```
+
+AI recommendations must pass through normal application/business rules before any permitted action occurs.
+
+---
+
+# 43. AI Data Access
+
+AI must not receive unrestricted database access.
+
+Preferred flow:
+
+```text
 AI
  ↓
-Approved Tool
- ↓
-Application Service
+Approved Application Tool / Service
  ↓
 Authorization
  ↓
-Tenant-Scoped Data
+Tenant + Store Scope
+ ↓
+Approved Business Data
 ```
 
----
+AI queries should retrieve only the information required for the specific task.
 
-# 31. AI Output Validation
-
-Never assume AI output is valid simply because it is returned successfully.
-
-AI outputs should be:
-
-* Structured where possible.
-* Schema validated.
-* Sanitized.
-* Interpreted by application logic.
-* Logged appropriately.
-
-AI-generated recommendations must not automatically become critical business mutations.
+Cross-tenant AI context must never occur accidentally.
 
 ---
 
-# 32. Frontend Standards
+# 44. AI Output Validation
 
-React components should have clear responsibilities.
+AI output must be treated as untrusted external input.
 
-Avoid creating components that simultaneously handle:
+Where structured output is required:
 
-* UI
-* API calls
-* Business rules
-* Database assumptions
-* Complex state management
-* Authorization logic
+* Validate schema.
+* Validate allowed values.
+* Apply business rules.
+* Sanitize content.
+* Handle malformed output.
+* Handle provider failures.
+* Apply timeouts and limits.
+
+Successful AI generation does not mean the output is valid.
+
+---
+
+# 45. Frontend Architecture
+
+The frontend uses Next.js App Router and React.
+
+Components should have clear responsibilities.
+
+Avoid components that simultaneously handle:
+
+```text
+UI
+API communication
+Complex business logic
+Authorization rules
+Global state
+Database assumptions
+```
 
 Prefer:
 
-```text id="f3yy8w"
+```text
 UI Component
-     ↓
+    ↓
 Hook / Client Logic
-     ↓
+    ↓
 API
-     ↓
+    ↓
 Backend Service
 ```
 
 ---
 
-# 33. Server vs Client Components
+# 46. Server and Client Components
 
-Next.js App Router should use Server Components by default where appropriate.
+Use Next.js Server Components by default where appropriate.
 
-Use Client Components when interactive behavior requires them.
+Use Client Components when interactivity requires them.
 
-Client Components should not be introduced unnecessarily.
+Typical Client Component use cases include:
 
-Examples that typically require client behavior:
-
-* POS interaction
+* POS interactions
 * Complex forms
-* Interactive filters
-* Real-time UI
-* Zustand state
+* Interactive tables
+* Filters
 * Browser APIs
+* Zustand state
+* Real-time interfaces
+
+Do not make entire pages client-rendered simply because one section is interactive.
 
 ---
 
-# 34. State Management
+# 47. State Management
 
-Use local React state when state is local.
+Use the simplest state mechanism that fits the requirement.
 
-Use Zustand only when state genuinely needs broader client-side sharing.
+Prefer:
 
-Do not place all application data into a global store.
-
-Avoid creating a global state architecture that duplicates server state unnecessarily.
-
----
-
-# 35. Data Fetching
-
-Server-owned business data should remain server-authoritative.
-
-Avoid treating:
-
-```text id="p7m7fc"
-Zustand
-localStorage
-React state
+```text
+Local React State
 ```
 
-as sources of truth for:
+for local UI state.
 
-* Permissions
-* Inventory
-* Payment status
-* Tenant identity
-* Financial totals
+Use:
+
+```text
+Zustand
+```
+
+when shared client-side state is genuinely required.
+
+Server state should not be duplicated unnecessarily into Zustand.
+
+Business truth remains on the server.
 
 ---
 
-# 36. UI Standards
+# 48. Server State vs Client State
 
-Every major UI flow should consider:
+The following must never become authoritative sources of business truth:
+
+```text
+React State
+Zustand
+localStorage
+sessionStorage
+Browser Cache
+```
+
+They must not determine:
+
+* Tenant ownership
+* Permissions
+* Inventory truth
+* Payment status
+* Financial totals
+* Final sale status
+
+The server and database remain authoritative.
+
+---
+
+# 49. Data Fetching
+
+Use the project's established data-fetching pattern consistently.
+
+Where appropriate:
+
+* Server-side fetching for server-rendered data.
+* TanStack Query for client-side server state.
+* Local state for temporary UI state.
+* Zustand only for genuine shared client state.
+
+Avoid creating multiple competing data-fetching patterns without justification.
+
+---
+
+# 50. UI Standards
+
+Every major workflow should consider:
 
 * Loading state
 * Empty state
 * Error state
 * Success feedback
 * Validation feedback
+* Permission visibility
 * Responsive behavior
 * Accessibility
-* Permission visibility
 
-Example:
+For example:
 
-```text id="9fj3jq"
+```text
 Loading
    ↓
 Data
@@ -905,42 +1387,69 @@ Empty
 Error
 ```
 
-A page should not assume that data always exists.
+The UI must not assume that data always exists.
 
 ---
 
-# 37. Forms
+# 51. POS UI Standard
+
+POS is a high-frequency workflow.
+
+The interface should prioritize:
+
+* Fast product search
+* Barcode scanning
+* Clear cart state
+* Fast quantity changes
+* Clear pricing
+* Clear discounts
+* Clear tax
+* Payment state
+* Sale completion feedback
+* Error recovery
+
+However, UI speed must not bypass backend validation.
+
+The client cart is a convenience layer.
+
+The server remains authoritative.
+
+---
+
+# 52. Forms
 
 Forms should:
 
 * Validate input.
-* Display useful errors.
+* Provide useful validation messages.
 * Prevent accidental duplicate submission.
-* Provide loading states.
+* Show loading states.
 * Handle server errors.
-* Preserve user input where appropriate.
+* Preserve input where appropriate.
+* Provide confirmation for destructive/critical actions where necessary.
 
-Critical actions should require appropriate confirmation when necessary.
+Critical operations should support safe retry behavior.
 
 ---
 
-# 38. Naming Standards
+# 53. Naming Standards
 
 Names should communicate intent.
 
 Prefer:
 
-```text id="9byu6q"
+```text
 createSale()
 calculateInvoiceTotal()
 validateStock()
 getTenantProducts()
 generateDemandForecast()
+resolveStoreContext()
 ```
 
 Avoid vague names:
 
-```text id="1v6ypb"
+```text
 doStuff()
 handleData()
 process()
@@ -948,109 +1457,110 @@ run()
 temp()
 ```
 
-Names should make the code understandable without requiring excessive comments.
+Names should reduce the need for explanatory comments.
 
 ---
 
-# 39. File Naming
+# 54. File Naming
 
-Use consistent naming conventions across the project.
+Maintain consistent project conventions.
 
-React components:
+Examples:
 
-```text id="8jpxl6"
+```text
 ProductForm.jsx
 InventoryTable.jsx
 PosCart.jsx
-```
 
-Utilities:
-
-```text id="k0e1ks"
 formatCurrency.js
 validatePagination.js
-```
 
-Services:
-
-```text id="m7xvdr"
 product.service.js
 inventory.service.js
 sale.service.js
 ```
 
-Maintain the chosen project convention consistently.
+Do not switch naming conventions randomly between modules.
 
 ---
 
-# 40. Comments
+# 55. Comments
 
 Comments should explain **why**, not simply repeat **what** the code does.
 
-Bad:
+Avoid:
 
 ```js
-// Add product to cart
+// Add product
 addProduct(product);
 ```
 
-Useful:
+Prefer:
 
 ```js
 // Stock is revalidated during checkout because cached availability
 // may have changed since the product was added to the cart.
 ```
 
-Avoid excessive comments that make the code harder to read.
+Comments should be updated when the underlying behavior changes.
 
 ---
 
-# 41. Code Duplication
+# 56. Code Reuse and Abstraction
 
-Before creating new logic, check whether an existing implementation can be reused.
+Reuse stable concepts.
 
-Avoid:
+Do not create abstractions merely because two pieces of code currently look similar.
 
-```text id="5z9w6m"
-calculateTotalA()
-calculateTotalB()
-calculateTotalC()
+Good abstraction:
+
+```text
+Shared sale calculation
+Shared authorization utility
+Shared tenant context
+Shared validation pattern
 ```
 
-when the underlying business rule is the same.
+Potentially premature abstraction:
 
-However, do not create premature abstractions merely to eliminate tiny similarities.
+```text
+GenericUniversalBusinessProcessor
+```
+
+created only for hypothetical future industries.
 
 ### Rule
 
-> **Reuse stable concepts; do not abstract hypothetical future requirements.**
+> **Reuse stable concepts; do not abstract hypothetical requirements.**
 
 ---
 
-# 42. Dependency Management
+# 57. Dependency Management
 
-New dependencies should be introduced only when they provide meaningful value.
+New dependencies require justification.
 
-Before adding a package, consider:
+Before adding a package, ask:
 
 * Do we already have this capability?
-* Is the package actively maintained?
-* Is it compatible with the current stack?
-* Does it introduce unnecessary complexity?
-* Does it create security or licensing concerns?
-* Can the functionality reasonably be implemented internally?
+* Does the existing stack support it?
+* Is the package maintained?
+* Does it add meaningful value?
+* Does it increase security risk?
+* Does it increase bundle size?
+* Does it introduce licensing concerns?
+* Can the requirement reasonably be implemented internally?
 
 Avoid dependency accumulation.
 
 ---
 
-# 43. Environment Variables
+# 58. Environment Variables
 
 Secrets and environment-specific configuration must never be hardcoded.
 
 Examples:
 
-```text id="0aw5ah"
+```text
 DATABASE_URL
 REDIS_URL
 AUTH_SECRET
@@ -1060,16 +1570,18 @@ PAYMENT_SECRET
 
 Maintain:
 
-```text id="2gkr0q"
+```text
 .env.local
 .env.example
 ```
 
-`.env.example` should document required variables without exposing real secrets.
+`.env.example` must contain placeholders only.
+
+Production secrets should be managed through appropriate deployment secret management.
 
 ---
 
-# 44. Security Secrets
+# 59. Secret Management
 
 Never commit:
 
@@ -1081,29 +1593,35 @@ Never commit:
 * Payment secrets
 * Production environment files
 
-Git history should also be considered when a secret is accidentally committed.
+If a secret is accidentally committed:
+
+1. Revoke/rotate it.
+2. Remove it from active configuration.
+3. Assess Git history exposure.
+4. Update the affected systems.
+
+Deleting the file alone does not make a leaked secret safe.
 
 ---
 
-# 45. Git Standards
+# 60. Git Standards
 
-Git should provide a reliable history of development.
+Git should provide a reliable development history.
 
-Use meaningful commits.
+Use meaningful commits:
 
-Prefer:
-
-```text id="7h5n0c"
+```text
 feat: add tenant onboarding
 feat: implement stock movement service
 fix: prevent cross-tenant product access
+fix: handle duplicate payment webhook
 refactor: simplify inventory repository
 docs: update API standards
 ```
 
-Avoid:
+Avoid meaningless commits such as:
 
-```text id="q7y2h3"
+```text
 update
 changes
 final
@@ -1114,48 +1632,51 @@ asdf
 
 ---
 
-# 46. Branching
+# 61. Branching Standard
 
-A simple branching model is preferred.
+Keep branching simple.
 
 Example:
 
-```text id="2b5s6h"
+```text
 main
-  │
-  ├── feature/*
-  ├── fix/*
-  └── refactor/*
+ ├── feature/*
+ ├── fix/*
+ └── refactor/*
 ```
 
-The exact workflow can evolve as the team grows.
+The exact workflow may evolve as the team grows.
 
-Do not create unnecessary branching complexity for a small team.
+For a solo founder/team, avoid unnecessary Git process overhead.
 
 ---
 
-# 47. Pull Requests
+# 62. Pull Request / Review Standard
 
 Even when working alone, significant changes should be reviewable.
 
-A pull request or equivalent review should consider:
+Before merging a meaningful change, review:
 
-* What changed?
-* Why?
-* Which modules are affected?
-* Are tenant boundaries preserved?
-* Are security implications understood?
-* Are migrations required?
-* Are environment variables required?
-* Does documentation need updating?
+```text
+What changed?
+Why?
+Which modules changed?
+Does tenant isolation remain safe?
+Does store isolation remain safe?
+Are permissions correct?
+Are transactions correct?
+Are migrations required?
+Are environment variables required?
+Does documentation require updating?
+```
 
-AI-generated code should receive the same review as manually written code.
+AI-generated code receives the same review standard as manually written code.
 
 ---
 
-# 48. AI-Assisted Development Standards
+# 63. AI-Assisted Development
 
-AI tools may be used extensively during development.
+AI tools are permitted and encouraged where they improve development speed and quality.
 
 However:
 
@@ -1163,33 +1684,36 @@ However:
 
 Before accepting AI-generated code:
 
-* Understand what it does.
+* Understand it.
 * Verify architecture.
+* Verify current framework APIs.
 * Check tenant isolation.
+* Check store isolation.
 * Check authorization.
-* Check error handling.
 * Check database behavior.
+* Check transactions.
+* Check error handling.
 * Check performance.
-* Check security.
 * Check dependencies.
-* Check whether it duplicates existing logic.
+* Check security.
+* Remove unnecessary abstractions.
 
-Do not blindly paste generated code into production paths.
+AI should implement within the established architecture rather than redesigning the architecture independently.
 
 ---
 
-# 49. AI Coding Workflow
+# 64. AI Coding Workflow
 
-Recommended workflow:
+Preferred workflow:
 
-```text id="o0jbrv"
+```text
 Requirement
     ↓
 Architecture Check
     ↓
 Implementation Plan
     ↓
-AI-Assisted Code
+AI-Assisted Implementation
     ↓
 Human Review
     ↓
@@ -1199,22 +1723,24 @@ Functional Verification
     ↓
 Security Review
     ↓
+Observability Review
+    ↓
 Commit
 ```
 
-AI should accelerate implementation, not replace engineering judgment.
+AI accelerates implementation.
+
+Engineering judgment remains human-controlled.
 
 ---
 
-# 50. Documentation Standards
+# 65. Documentation Standards
 
-Architectural decisions should be documented.
-
-When implementation changes an important architectural decision, update the relevant documentation.
+Important architectural decisions must be documented.
 
 Examples:
 
-```text id="9grm44"
+```text
 Database change
 → database-design.md
 
@@ -1224,213 +1750,278 @@ Security change
 AI architecture change
 → ai-architecture.md
 
-Deployment change
-→ devops.md
+Caching/queue change
+→ caching-and-queues.md
 
 Observability change
 → observability.md
+
+Deployment change
+→ devops.md
 ```
 
-Avoid allowing documentation and implementation to drift significantly.
+Documentation should describe the actual architecture, not an idealized future system.
 
 ---
 
-# 51. Definition of Done for a Feature
+# 66. Documentation Synchronization
 
-A feature is not complete merely because the UI exists.
+A significant architecture change should update:
 
-A feature should generally satisfy:
-
-```text id="jvpsx9"
-Requirement
-   ↓
-UI
-   ↓
-API
-   ↓
-Validation
-   ↓
-Business Logic
-   ↓
-Database
-   ↓
-Authorization
-   ↓
-Tenant Isolation
-   ↓
-Error Handling
-   ↓
-Logging
-   ↓
+```text
+Implementation
++
 Documentation
-   ↓
-Verification
++
+Architecture
 ```
 
-Not every feature requires every layer, but applicable layers must be considered.
+Documentation drift is technical debt.
+
+A feature should not be considered fully complete if the implementation significantly contradicts the documented architecture.
 
 ---
 
-# 52. Critical Feature Review
+# 67. Feature Definition of Done
 
-For business-critical features, explicitly review:
+A feature is not complete merely because the UI works.
 
-### Authentication
+Applicable layers should be verified:
 
-* [ ] Session security
+```text
+Requirement
+    ↓
+Data Model
+    ↓
+API Contract
+    ↓
+Validation
+    ↓
+Business Logic
+    ↓
+Authorization
+    ↓
+Tenant Scope
+    ↓
+Store Scope
+    ↓
+Database Integrity
+    ↓
+Error Handling
+    ↓
+Observability
+    ↓
+Testing / Verification
+    ↓
+Documentation
+```
+
+Not every feature requires every layer, but each applicable concern must be considered.
+
+---
+
+# 68. Critical Feature Review
+
+## Authentication
+
+* [ ] Session/authentication security
 * [ ] Authorization
+* [ ] Tenant resolution
+* [ ] Store context
 * [ ] Error handling
+* [ ] Rate limiting where required
 
-### Inventory
+## Inventory
 
-* [ ] Transaction integrity
 * [ ] Tenant isolation
+* [ ] Store isolation
 * [ ] Stock movement
-* [ ] Concurrency
+* [ ] Transaction integrity
+* [ ] Concurrency handling
+* [ ] Auditability
 
-### POS
+## POS
 
+* [ ] Product validation
 * [ ] Stock validation
-* [ ] Price calculation
-* [ ] Payment
-* [ ] Transaction atomicity
+* [ ] Price/tax/discount calculation
+* [ ] Payment state
+* [ ] Sale transaction
+* [ ] Inventory update
+* [ ] Invoice record
+* [ ] Idempotency where required
 
-### Payments
+## Payments
 
 * [ ] Server-side verification
-* [ ] Webhooks
+* [ ] Webhook verification
 * [ ] Idempotency
+* [ ] Duplicate protection
 * [ ] Failure handling
+* [ ] Reconciliation where applicable
 
-### AI
+## AI
 
-* [ ] Tenant context
+* [ ] Tenant/store context
+* [ ] Approved data access
 * [ ] Output validation
-* [ ] Cost control
 * [ ] Provider failure handling
+* [ ] Cost/usage visibility
+* [ ] No unauthorized mutations
 
 ---
 
-# 53. Performance Standards
+# 69. Performance Standards
 
 Performance optimization should be evidence-driven.
 
-Do not optimize based only on assumptions.
+Measure before optimizing.
 
-Look for:
+Investigate:
 
-* Slow queries
-* Excessive API requests
+* Slow database queries
+* Excessive API calls
 * Large payloads
-* Unnecessary renders
+* Unnecessary React renders
 * Expensive calculations
 * Cache opportunities
 * Queue bottlenecks
+* External provider latency
 
-Prefer measuring before optimizing.
+Do not introduce caching, queues, workers, or complex optimization solely because they are technically interesting.
 
 ---
 
-# 54. Security-by-Default
-
-New features should begin secure rather than becoming secure later.
+# 70. Security-by-Default
 
 Before implementing a feature, ask:
 
-```text id="yq5g47"
+```text
 Who can access it?
+
 Which tenant owns the data?
+
+Which store owns the data?
+
 What can the user modify?
+
 What validation is required?
-What happens if the request is replayed?
+
+Can the request be replayed?
+
+Can another tenant access the resource?
+
 What sensitive data is involved?
-What should be logged?
+
+What must be audited?
+
+What must be logged?
 ```
 
-Security review should happen during implementation, not only before deployment.
+Security should be considered during design and implementation, not only before production.
 
 ---
 
-# 55. Observability Standards
+# 71. Observability Standards
 
-New backend features should provide appropriate observability.
+Important backend features should provide appropriate observability.
 
 Consider:
 
 * Structured logs
 * Request ID
-* Tenant context
+* Tenant ID where appropriate
+* Store ID where appropriate
 * Error codes
 * Duration
 * Business events
 * Audit events
+* Queue/job identifiers
 * Metrics where useful
 
-Do not log sensitive information unnecessarily.
+Never log sensitive information unnecessarily.
 
 ---
 
-# 56. Database Migration Standards
+# 72. Database Migration Standards
 
-Database schema changes must be handled through Prisma migrations.
+All Prisma schema changes must be handled through version-controlled Prisma migrations.
 
-Never casually modify production schema manually.
+Do not casually modify production schema manually.
 
-Migration changes should be:
+Migrations must be:
 
-* Version controlled.
-* Reviewable.
-* Reproducible.
-* Tested against expected environments.
-* Compatible with deployment sequencing.
+* Reviewable
+* Reproducible
+* Tested
+* Version controlled
+* Compatible with deployment sequencing
 
-Destructive migrations require additional care.
+Destructive migrations require additional planning.
+
+For high-risk migrations, consider:
+
+```text
+Expand
+ ↓
+Migrate
+ ↓
+Verify
+ ↓
+Contract
+```
+
+rather than immediately removing data structures.
 
 ---
 
-# 57. Backward Compatibility
+# 73. Backward Compatibility
 
-When changing APIs or database structures, consider existing consumers.
+When changing APIs, database structures, or job payloads, consider existing consumers.
 
-Avoid breaking:
+Potential consumers include:
 
-```text id="r3s5vc"
+```text
 Frontend
-API
+API Clients
 Workers
 Scheduled Jobs
 Reports
+Webhooks
 External Integrations
 ```
 
-without intentionally coordinating the change.
+Do not make breaking changes without intentionally coordinating the affected systems.
+
+Job payloads should also support versioning when long-lived compatibility is required.
 
 ---
 
-# 58. Refactoring Standards
+# 74. Refactoring Standards
 
-Refactor when complexity is creating real problems.
+Refactor when complexity creates a real problem.
 
-Good reasons:
+Good reasons include:
 
 * Duplicate business logic
-* Difficult testing
 * Poor module boundaries
-* Performance issues
-* Security concerns
+* Difficult testing
+* Security problems
+* Performance problems
 * Maintainability problems
+* Repeated production defects
 
-Avoid refactoring simply because another coding style looks more elegant.
+Do not refactor merely because another coding style looks more elegant.
 
 ---
 
-# 59. Technical Debt
+# 75. Technical Debt
 
 Technical debt should be recorded rather than forgotten.
 
 For deferred work, document:
 
-```text id="d8x7xq"
+```text
 Problem
 Impact
 Reason Deferred
@@ -1438,155 +2029,124 @@ Suggested Solution
 Priority
 ```
 
-This prevents temporary shortcuts from silently becoming permanent architecture.
+Temporary shortcuts must not silently become permanent architecture.
 
 ---
 
-# 60. Avoid Premature Complexity
+# 76. Avoid Premature Complexity
 
 Buzzsynx should not introduce architecture simply because it is technically interesting.
 
-Avoid prematurely adding:
+Do not prematurely introduce:
 
 * Microservices
 * Kubernetes
-* Event-driven everything
+* Service mesh
+* Multi-region infrastructure
 * Multiple databases
-* Multi-region architecture
-* Complex AI agents
-* Service meshes
 * Distributed transactions
+* Event-driven architecture everywhere
+* Complex AI agents
+* Custom ML infrastructure
 
-The modular monolith should remain the default until real requirements justify additional complexity.
+unless real requirements justify them.
+
+The modular monolith remains the default.
 
 ---
 
-# 61. Testing Philosophy
+# 77. Testing Philosophy
 
-Testing is an important part of the eventual development process.
+Testing should prioritize business risk.
 
-At minimum, critical business logic should eventually have appropriate automated coverage.
+Critical areas include:
 
-Priority areas include:
-
-```text id="wq0wz3"
+```text
 Authentication
-Multi-Tenancy
+Tenant Isolation
+Store Isolation
 RBAC
+Products
 Inventory
+Purchasing
 POS
 Payments
+Returns
 Critical Business Rules
 AI Boundaries
+Queue Processing
 ```
 
-The detailed testing strategy remains a separate document and can be completed when the implementation phase reaches that requirement.
+Important tests should cover both success and failure paths.
+
+The detailed testing strategy remains defined in the separate testing document.
 
 ---
 
-# 62. Production Readiness
+# 78. Testing Expectations for Critical Workflows
 
-Before a feature reaches production, consider:
+For critical workflows, verify:
+
+```text
+Correct Result
++
+Authorization
++
+Tenant Isolation
++
+Store Isolation
++
+Transaction Integrity
++
+Idempotency
++
+Failure Recovery
+```
+
+Examples include:
+
+```text
+Sale
+Payment
+Inventory Adjustment
+Purchase Receiving
+Return
+Webhook Processing
+Tenant Onboarding
+```
+
+---
+
+# 79. Production Readiness
+
+Before production release, consider:
 
 * Security
 * Tenant isolation
+* Store isolation
 * Data integrity
 * Error handling
 * Observability
 * Performance
 * Recovery
-* Deployment impact
+* Backup implications
 * Migration impact
+* Deployment impact
+* External dependency failure
+* Queue failure
+* Redis failure
 
 A feature that works locally is not automatically production-ready.
 
 ---
 
-# 63. Code Review Checklist
+# 80. Local Development Standard
 
-Before merging significant code:
+The local development environment should reproduce the important application dependencies.
 
-* [ ] Requirement understood.
-* [ ] Correct module used.
-* [ ] No unnecessary duplication.
-* [ ] Business logic is in the appropriate layer.
-* [ ] Validation exists.
-* [ ] Authorization exists.
-* [ ] Tenant isolation exists.
-* [ ] Errors are handled.
-* [ ] Sensitive data is protected.
-* [ ] Database operations are safe.
-* [ ] Transactions are used where required.
-* [ ] Logging is appropriate.
-* [ ] Documentation is updated.
-* [ ] No unnecessary dependency added.
-* [ ] No secrets committed.
+Where applicable:
 
----
-
-# 64. AI Code Review Checklist
-
-When AI generated or significantly assisted the implementation:
-
-* [ ] Code behavior understood.
-* [ ] No hallucinated APIs or packages.
-* [ ] Current framework conventions verified.
-* [ ] Existing project patterns followed.
-* [ ] Security reviewed.
-* [ ] Tenant isolation reviewed.
-* [ ] Database queries reviewed.
-* [ ] Error handling reviewed.
-* [ ] Performance considered.
-* [ ] Unnecessary abstraction removed.
-* [ ] Documentation updated.
-
----
-
-# 65. Development Workflow
-
-The preferred workflow for Buzzsynx is:
-
-```text id="3w1j76"
-1. Understand Requirement
-        ↓
-2. Check Existing Architecture
-        ↓
-3. Identify Affected Module
-        ↓
-4. Define Data Changes
-        ↓
-5. Define API Contract
-        ↓
-6. Implement Backend
-        ↓
-7. Implement Frontend
-        ↓
-8. Add Validation
-        ↓
-9. Add Authorization
-        ↓
-10. Verify Tenant Isolation
-        ↓
-11. Add Observability
-        ↓
-12. Verify Business Workflow
-        ↓
-13. Run Quality Checks
-        ↓
-14. Update Documentation
-        ↓
-15. Commit
-```
-
----
-
-# 66. Local Development Standard
-
-Development should be reproducible.
-
-Where applicable, the local environment should use:
-
-```text id="17p0hv"
+```text
 Next.js
 Express
 PostgreSQL
@@ -1594,189 +2154,350 @@ Redis
 BullMQ Worker
 ```
 
-Docker Compose should eventually provide a consistent development environment.
+Docker Compose should provide a reproducible environment where practical.
+
+The local environment should remain simple enough for fast development.
 
 ---
 
-# 67. Environment Separation
+# 81. Environment Separation
 
 Maintain clear separation between:
 
-```text id="6yyvvr"
+```text
 Development
 Staging
 Production
 ```
 
-Never assume that configuration safe for development is automatically safe for production.
+Each environment must have its own configuration and appropriate secrets.
+
+Never assume development configuration is safe for production.
 
 ---
 
-# 68. Feature Flags & Configuration
+# 82. Feature Flags and Configuration
 
-Features that vary by tenant or environment should use controlled configuration.
+Controlled configuration may be used for:
 
-Examples:
-
-```text id="f8m5f1"
-Industry Capability
-Feature Flag
-AI Feature
-Subscription Feature
-Operational Setting
+```text
+Industry Capabilities
+Feature Rollouts
+AI Features
+Subscription Entitlements
+Operational Settings
+Experimental Features
 ```
 
-Avoid scattering hardcoded feature conditions throughout the application.
+Do not scatter hardcoded conditions throughout the application.
+
+Capability checks and authorization must still be enforced server-side.
 
 ---
 
-# 69. File & Media Standards
+# 83. File and Media Standards
 
-Uploaded files should be treated as untrusted input.
+Uploaded files are untrusted input.
 
 Validate:
 
 * File type
 * File size
 * File name
-* Storage path
+* File content where appropriate
+* Storage location
 * Access permissions
 
-Do not expose private tenant files publicly without appropriate authorization.
+Private tenant files must not become publicly accessible merely because a URL exists.
+
+Storage paths should preserve appropriate tenant/store boundaries.
 
 ---
 
-# 70. External Service Standards
+# 84. External Service Standards
 
-External services should be isolated behind service/provider abstractions where appropriate.
+External services should be isolated behind provider/service boundaries where meaningful.
 
 Examples:
 
-```text id="4q7m32"
+```text
 Payment Provider
 AI Provider
 Email Provider
-File Storage
+Object Storage
 ```
 
-Business modules should not become tightly coupled to a specific provider when abstraction provides meaningful value.
+Business modules should depend on application-level interfaces rather than spreading provider-specific logic throughout the codebase.
 
 ---
 
-# 71. Retry Standards
+# 85. Retry Standards
 
-Retries should be used carefully.
+Retries are appropriate for temporary failures such as:
 
-Good candidates:
-
-* Temporary network failures
+* Network failures
 * AI provider failures
 * Email delivery
-* Background jobs
-* External APIs
+* Queue jobs
+* External service failures
 
 Do not blindly retry operations that may create duplicate financial or inventory effects.
 
-Use idempotency where required.
+Use idempotency and provider-specific semantics where required.
 
 ---
 
-# 72. Graceful Failure
+# 86. Graceful Failure
 
-Optional services should fail gracefully.
+Optional services should fail without unnecessarily stopping core business operations.
 
 Example:
 
-```text id="f4d2gz"
+```text
 AI Provider Down
       ↓
-AI Feature Unavailable
+AI Insight Unavailable
       ↓
-Core Business Operations Continue
+POS Continues
 ```
 
-Core business functionality should not unnecessarily depend on optional intelligence services.
+Another example:
+
+```text
+Email Provider Down
+      ↓
+Notification Job Retries
+      ↓
+Business Transaction Remains Successful
+```
+
+The architecture should prefer graceful degradation.
 
 ---
 
-# 73. Logging Standards
+# 87. Logging Standards
 
-Every significant system boundary should provide useful logs.
+Important system boundaries should produce useful structured events.
 
 Examples:
 
-```text id="4p8y1f"
+```text
 auth.login.success
 auth.login.failed
+
 tenant.created
+store.created
+
 product.created
 inventory.adjusted
+
 sale.created
+sale.failed
+
 payment.failed
+payment.webhook.processed
+
 ai.request.failed
+
 queue.job.completed
+queue.job.failed
 ```
 
 Event names should remain consistent.
 
+Logging must not replace business audit records.
+
 ---
 
-# 74. Audit Standards
+# 88. Audit Standards
 
-Business-critical actions should produce audit events.
+Business-critical actions should produce audit events where required.
 
 Examples:
 
-```text id="g8l8wt"
+```text
 USER_ROLE_CHANGED
 PRODUCT_UPDATED
 INVENTORY_ADJUSTED
 SALE_CREATED
 PAYMENT_REFUNDED
 TENANT_SETTINGS_CHANGED
+STORE_CREATED
+MEMBER_INVITED
+TENANT_SUSPENDED
 ```
 
-Audit records must be protected from unauthorized modification or access.
+Audit records should capture appropriate:
 
----
-
-# 75. Documentation Synchronization
-
-When a significant implementation decision changes:
-
-```text id="z8i6xq"
-Code
-  +
-Documentation
-  +
-Architecture
+```text
+tenantId
+storeId
+userId
+action
+resource
+resourceId
+requestId
+timestamp
+reason / relevant metadata
 ```
 
-must remain aligned.
-
-A technically correct implementation with outdated documentation is considered incomplete.
+Audit logs must be protected from unauthorized modification and access.
 
 ---
 
-# 76. Project Consistency Rule
+# 89. Audit vs Technical Logs
 
-Before introducing a new pattern, inspect the existing codebase.
+These are different systems.
 
-Ask:
+### Technical Log
 
-> **Do we already have a pattern for this?**
+```text
+inventory.service.updateStock.failed
+```
 
-If yes, follow the existing pattern unless there is a documented reason to change it.
+Purpose:
 
-Consistency is more valuable than constantly switching between approaches.
+> Help engineers diagnose system behavior.
+
+### Audit Event
+
+```text
+INVENTORY_ADJUSTED
+```
+
+Purpose:
+
+> Record an important business action.
+
+Neither should be used as a substitute for the other.
 
 ---
 
-# 77. Engineering Decision Rule
+# 90. Dependency Health
 
-When multiple solutions are possible, prefer the solution that provides the best balance of:
+Critical infrastructure should have appropriate health monitoring.
 
-```text id="3r5p9y"
+Examples:
+
+```text
+PostgreSQL
+Redis
+BullMQ / Workers
+AI Provider
+Payment Provider
+Email Provider
+Object Storage
+```
+
+Dependencies should be classified as:
+
+```text
+Critical
+Degraded
+Optional
+```
+
+A failure in an optional service should not automatically make the entire application unavailable.
+
+---
+
+# 91. Business Workflow Integrity
+
+The canonical supermarket workflow is:
+
+```text
+Tenant Onboarding
+      ↓
+Store
+      ↓
+Products
+      ↓
+Suppliers
+      ↓
+Purchase / Receive
+      ↓
+Inventory
+      ↓
+POS
+      ↓
+Sale / Payment
+      ↓
+Invoice
+      ↓
+Analytics
+      ↓
+AI Insights
+```
+
+The implementation should preserve the distinction between:
+
+```text
+Transactional Core
+```
+
+and:
+
+```text
+Derived / Asynchronous Intelligence
+```
+
+---
+
+# 92. Core Transaction vs Async Work
+
+Critical business operations should complete their authoritative database transaction before non-critical asynchronous processing.
+
+Example:
+
+```text
+POS Sale
+   ↓
+DB Transaction
+   ├── Sale
+   ├── Payment Allocation
+   ├── Stock Movement
+   ├── Stock Balance
+   └── Invoice Record
+   ↓
+Commit
+   ↓
+Async
+   ├── Analytics
+   ├── AI
+   ├── Notifications
+   ├── PDF
+   └── Cache Invalidation
+```
+
+AI, email, PDF generation, and analytics processing must not unnecessarily block the core sale transaction.
+
+---
+
+# 93. Code Quality Checks
+
+Before significant changes are committed, run applicable checks such as:
+
+```text
+Lint
+Build
+Unit Tests
+Integration Tests
+Migration Validation
+API Verification
+Security Checks
+```
+
+The exact checks depend on the affected module.
+
+A feature should not be considered verified merely because the development server starts.
+
+---
+
+# 94. Engineering Decision Rule
+
+When multiple solutions are possible, evaluate:
+
+```text
 Correctness
 +
 Security
@@ -1786,38 +2507,157 @@ Maintainability
 Simplicity
 +
 Performance
++
+Operational Reliability
 ```
 
-Do not choose a solution merely because it is more advanced.
+Choose the simplest solution that satisfies the actual requirement.
+
+Do not choose a more advanced architecture simply because it appears more scalable.
 
 ---
 
-# 78. Definition of Development Standards Compliance
+# 95. Architecture Change Rule
 
-A feature or module follows Buzzsynx development standards when:
+A developer or AI tool must not independently introduce a major architectural pattern without deliberate review.
 
-* [ ] It follows the modular architecture.
-* [ ] Responsibilities are clearly separated.
-* [ ] Business logic is deterministic where required.
-* [ ] Tenant isolation is enforced.
-* [ ] Authorization is enforced server-side.
-* [ ] Input is validated.
-* [ ] Errors are handled consistently.
-* [ ] Database access is safe.
-* [ ] Critical operations use transactions where necessary.
-* [ ] Redis is used appropriately.
-* [ ] Background jobs are reliable.
-* [ ] AI is safely isolated.
-* [ ] Observability is provided.
-* [ ] Secrets are protected.
-* [ ] Documentation is maintained.
-* [ ] The implementation avoids unnecessary complexity.
+Major changes include:
+
+```text
+New Database
+New Service Boundary
+New Queue Architecture
+New Authentication Strategy
+New Tenant Isolation Model
+New AI Architecture
+Microservice Extraction
+Infrastructure Redesign
+```
+
+Such changes require explicit architectural evaluation.
 
 ---
 
-# 79. Final Engineering Rules
+# 96. Development Workflow
 
-The following rules should remain visible throughout development.
+Preferred workflow:
+
+```text
+1. Understand Requirement
+          ↓
+2. Check Existing Architecture
+          ↓
+3. Identify Affected Module
+          ↓
+4. Define Data Changes
+          ↓
+5. Define API Contract
+          ↓
+6. Define Security / Scope
+          ↓
+7. Implement Backend
+          ↓
+8. Implement Frontend
+          ↓
+9. Add Validation
+          ↓
+10. Add Authorization
+          ↓
+11. Verify Tenant + Store Isolation
+          ↓
+12. Add Observability
+          ↓
+13. Test Critical Workflow
+          ↓
+14. Run Quality Checks
+          ↓
+15. Update Documentation
+          ↓
+16. Review
+          ↓
+17. Commit
+```
+
+---
+
+# 97. Feature Review Checklist
+
+Before considering a feature complete:
+
+* [ ] Requirement understood.
+* [ ] Correct module selected.
+* [ ] Existing patterns reviewed.
+* [ ] Data model reviewed.
+* [ ] API contract defined.
+* [ ] Input validation implemented.
+* [ ] Authentication considered.
+* [ ] Authorization implemented.
+* [ ] Tenant isolation verified.
+* [ ] Store isolation verified where applicable.
+* [ ] Transaction boundary reviewed.
+* [ ] Idempotency considered.
+* [ ] Error handling implemented.
+* [ ] Observability added.
+* [ ] Sensitive data protected.
+* [ ] Tests/verification completed.
+* [ ] Documentation updated.
+* [ ] No unnecessary dependency introduced.
+
+---
+
+# 98. AI Code Review Checklist
+
+When AI significantly assists implementation:
+
+* [ ] Code behavior is understood.
+* [ ] Current framework APIs are verified.
+* [ ] No hallucinated package/API is used.
+* [ ] Existing project patterns are followed.
+* [ ] Architecture is preserved.
+* [ ] Tenant isolation is reviewed.
+* [ ] Store isolation is reviewed.
+* [ ] Authorization is reviewed.
+* [ ] Database queries are reviewed.
+* [ ] Transaction boundaries are reviewed.
+* [ ] Error handling is reviewed.
+* [ ] Security is reviewed.
+* [ ] Performance is considered.
+* [ ] Unnecessary abstractions are removed.
+* [ ] Documentation is updated.
+
+---
+
+# 99. Development Standards Compliance
+
+A module follows Buzzsynx engineering standards when applicable requirements are satisfied for:
+
+```text
+Architecture
+Security
+Tenant Isolation
+Store Isolation
+Authorization
+Validation
+Business Logic
+Database Integrity
+Transactions
+Idempotency
+Caching
+Queues
+AI Boundaries
+Observability
+Testing
+Documentation
+Operational Reliability
+```
+
+Compliance does not mean every module must implement every technology.
+
+It means every relevant engineering concern has been deliberately addressed.
+
+---
+
+# 100. Final Engineering Rules
 
 ### Rule 1
 
@@ -1829,54 +2669,68 @@ The following rules should remain visible throughout development.
 
 ### Rule 3
 
-> **Never use AI as the authority for critical business calculations.**
+> **Always validate store access against trusted membership context.**
 
 ### Rule 4
 
-> **Never use Redis as the source of truth for business data.**
+> **Never use AI as the authority for critical business calculations or state.**
 
 ### Rule 5
 
-> **Never allow background jobs to silently fail.**
+> **Never use Redis as the source of truth for business data.**
 
 ### Rule 6
 
-> **Never commit secrets.**
+> **Never assume background jobs execute exactly once.**
 
 ### Rule 7
 
-> **Never duplicate business rules unnecessarily.**
+> **Never commit secrets.**
 
 ### Rule 8
 
-> **Never introduce architecture complexity without a real requirement.**
+> **Never duplicate authoritative business rules unnecessarily.**
 
 ### Rule 9
 
-> **Never treat AI-generated code as automatically correct.**
+> **Never allow frontend state to become business authority.**
 
 ### Rule 10
 
-> **Never call a feature complete until its complete workflow is verified.**
+> **Never introduce architectural complexity without a real requirement.**
+
+### Rule 11
+
+> **Never treat AI-generated code as automatically correct.**
+
+### Rule 12
+
+> **Never call a feature complete until its applicable workflow has been verified.**
 
 ---
 
-# 80. Final Development Principle
+# 101. Final Development Principle
 
-Buzzsynx should be built with the mindset:
+Buzzsynx should be developed with the mindset:
 
-```text id="t0y2mz"
+```text
 Think Before Coding
+        ↓
+Understand the Architecture
         ↓
 Design Before Implementing
         ↓
-Understand Before Using AI
+Define Security and Scope
         ↓
-Secure Before Exposing
+Build Deterministic Business Logic
+        ↓
+Use AI Intelligently
         ↓
 Validate Before Trusting
         ↓
 Observe Before Operating
+        ↓
+Test Before Declaring Complete
         ↓
 Measure Before Optimizing
         ↓
@@ -1889,9 +2743,9 @@ The objective is to build a system where every important piece of code has a cle
 
 ---
 
-# 81. Final Statement
+# 102. Final Statement
 
-Buzzsynx development should remain disciplined as the project grows.
+Buzzsynx development should remain disciplined as the product evolves.
 
 The codebase should be:
 
@@ -1900,27 +2754,32 @@ The codebase should be:
 * **Secure enough to protect tenant businesses**
 * **Reliable enough for critical workflows**
 * **Observable enough to diagnose failures**
-* **Flexible enough to support multiple industries**
+* **Deterministic enough for financial and inventory operations**
+* **Flexible enough to support future industry capabilities**
 * **Structured enough to support future scale**
 
-The development standard can be summarized as:
+The development philosophy is:
 
 > **Build deliberately.**
->
+
 > **Keep boundaries clear.**
->
+
 > **Protect the data.**
->
-> **Keep business rules deterministic.**
->
+
+> **Keep critical business rules deterministic.**
+
 > **Use AI intelligently, not blindly.**
->
+
 > **Prefer simple architecture until complexity is justified.**
->
+
+> **Verify before declaring complete.**
+
 > **Leave the codebase better than you found it.**
 
-### Buzzsynx Engineering Motto
+---
+
+# Buzzsynx Engineering Motto
 
 > **Understand → Design → Build → Verify → Harden → Deliver.**
 
-**Buzzsynx — First Brick, Not the Whole Building.**
+> **Buzzsynx — First Brick, Not the Whole Building.**
