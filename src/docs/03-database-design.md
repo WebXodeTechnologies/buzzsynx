@@ -1,61 +1,86 @@
 # Buzzsynx — Database Design
 
-## 1. Purpose
+**Version:** v0.2
+**Status:** Architecture-Aligned Database Baseline
+**Product:** Buzzsynx
+**Initial Industry:** Supermarket / Grocery Retail
+**Database:** PostgreSQL
+**ORM:** Prisma
+
+---
+
+# 1. Purpose
 
 This document defines the database architecture, data model, relationships, constraints, tenant isolation strategy, transaction rules, indexing strategy, and data integrity standards for Buzzsynx.
 
-Buzzsynx is a multi-tenant business operations SaaS designed to support different types of businesses through a shared application platform.
+Buzzsynx is a **multi-tenant business operations SaaS** built around a shared business engine with configurable industry capabilities.
 
-Examples:
+The first complete implementation is:
 
-* Tenant A → Pharmacy
-* Tenant B → Supermarket
-* Tenant C → Clothing Store
-* Tenant D → Restaurant
+> **Supermarket / Grocery Retail**
+
+Other industries such as pharmacy, clothing, restaurant, and clinic are planned as **future industry capabilities**, not simultaneous MVP implementations.
 
 The database must therefore support:
 
 1. Shared core business functionality.
 2. Strict tenant-level data isolation.
-3. Industry-specific capabilities.
-4. High-integrity inventory management.
-5. Transaction-safe POS operations.
-6. Scalable analytics and reporting.
-7. AI-ready historical business data.
-8. Auditability.
-9. Future SaaS scalability.
+3. Store/branch-level operational scope.
+4. Configurable industry capabilities.
+5. High-integrity inventory management.
+6. Transaction-safe POS operations.
+7. Scalable analytics and reporting.
+8. AI-ready historical business data.
+9. Auditability.
+10. Future SaaS scalability.
 
 ---
 
 # 2. Database Technology
 
-## Primary Database
+## 2.1 Primary Database
 
 **PostgreSQL**
 
-PostgreSQL is the primary source of truth for all transactional and business-critical data.
+PostgreSQL is the authoritative source of truth for all transactional and business-critical data.
 
-### ORM
+It stores:
+
+* Tenants
+* Users and memberships
+* Products
+* Inventory
+* Purchases
+* Sales
+* Payments
+* Customers
+* Invoices
+* Audit records
+* Business configuration
+* AI and analytics results where persistence is required
+
+---
+
+## 2.2 ORM
 
 **Prisma**
 
-Prisma will be used for:
+Prisma is used for:
 
 * Schema definition
-* Migrations
-* Type-safe database access
+* Version-controlled migrations
+* Database access
 * Relationships
 * Transactions
 * Query construction
+* Validation support
 * Database client management
 
 ---
 
 # 3. Database Design Principles
 
-Buzzsynx follows these principles:
-
-### Principle 1 — PostgreSQL is the source of truth
+## Principle 1 — PostgreSQL is the Source of Truth
 
 Redis must never become the authoritative source for:
 
@@ -67,180 +92,165 @@ Redis must never become the authoritative source for:
 * Products
 * Financial records
 
-Redis is used for performance and temporary state.
+Redis is used for:
+
+* Caching
+* Temporary state
+* Rate limiting
+* Session-related state where required
+* Queue support
+* Performance optimization
 
 ---
 
-### Principle 2 — Tenant isolation is mandatory
+## Principle 2 — Tenant Isolation is Mandatory
 
-Every tenant-owned business record must be associated with a `tenantId`.
+Every tenant-owned business record must have a clear relationship to its tenant.
 
-Example:
+Conceptually:
 
 ```text
 Tenant
-   │
-   ├── Users
-   ├── Products
-   ├── Inventory
-   ├── Suppliers
-   ├── Customers
-   ├── Purchases
-   ├── Sales
-   ├── Payments
-   └── Reports
+│
+├── Stores / Branches
+│   ├── Stock
+│   ├── Sales
+│   ├── Purchases
+│   └── Store-scoped Users
+│
+├── Products
+├── Suppliers
+├── Customers
+├── Business Settings
+├── Analytics
+├── AI
+└── Audit
 ```
 
 A user belonging to Tenant A must never access Tenant B's records.
 
+The backend must derive tenant context from authenticated membership and authorization context.
+
+A client-provided `tenantId` must never be trusted as proof of access.
+
 ---
 
-### Principle 3 — Inventory is ledger-driven
+# 4. Tenant and Store Architecture
 
-Inventory should not depend only on a mutable quantity field.
-
-Every meaningful stock change should generate an inventory movement.
-
-Examples:
+Buzzsynx follows this hierarchy:
 
 ```text
-PURCHASE
-SALE
-RETURN
-TRANSFER
-DAMAGE
-EXPIRY
-ADJUSTMENT
+Super Admin
+    │
+    ▼
+Tenant / Business
+    │
+    ├── Store / Branch
+    │       │
+    │       ├── Users / Memberships
+    │       ├── Stock
+    │       ├── POS
+    │       └── Store Operations
+    │
+    ├── Products
+    ├── Suppliers
+    ├── Customers
+    ├── Business Settings
+    └── Tenant-wide Analytics
 ```
 
-This creates a historical audit trail.
+A tenant may have:
+
+* One store
+* Multiple stores
+* A warehouse
+* Future specialized stock locations
+
+The MVP may begin with one store, but the schema should not require a redesign when additional branches are introduced.
 
 ---
 
-### Principle 4 — Financial data is immutable where appropriate
+# 5. Initial Product Scope
 
-Completed transactions should not be casually overwritten.
-
-For example:
+The database is designed as a reusable platform, but implementation priority is:
 
 ```text
-Sale
-SaleItem
-Payment
-Invoice
-InventoryMovement
+Phase 1
+Supermarket / Grocery
 ```
 
-should preserve historical information.
-
-Corrections should generally happen through:
-
-* Returns
-* Refunds
-* Adjustments
-* Credit notes
-* Reversal transactions
-
-rather than silently modifying historical records.
-
----
-
-### Principle 5 — Industry capabilities should not duplicate the entire database
-
-Buzzsynx should not create separate databases for:
+Future capability examples:
 
 ```text
 Pharmacy
-Supermarket
 Clothing
 Restaurant
+Clinic
+General Retail
 ```
 
-Instead:
+These future industries must not force unnecessary MVP tables or workflows into the initial implementation.
+
+Shared entities should remain generic where possible.
+
+Industry-specific entities should be introduced through capability modules.
+
+---
+
+# 6. High-Level Entity Model
 
 ```text
-Shared Core
-     +
-Industry Capabilities
-     +
-Tenant Configuration
+Platform
+│
+├── Tenant
+│   │
+│   ├── Memberships
+│   ├── Roles / Permissions
+│   ├── Stores
+│   │   └── Store Operations
+│   │
+│   ├── Products
+│   │   ├── Categories
+│   │   ├── Brands
+│   │   └── Variants
+│   │
+│   ├── Suppliers
+│   │   └── Purchases
+│   │
+│   ├── Customers
+│   │
+│   ├── Inventory
+│   │   ├── Stock
+│   │   └── Inventory Movements
+│   │
+│   ├── POS
+│   │   ├── Sales
+│   │   ├── Sale Items
+│   │   └── Payments
+│   │
+│   ├── Invoices
+│   ├── Analytics
+│   ├── AI
+│   ├── Notifications
+│   └── Audit Logs
 ```
 
 ---
 
-# 4. High-Level Entity Model
+# 7. Tenant Model
 
-The major database domains are:
-
-```text
-Tenant
- ├── Users
- ├── Roles
- ├── Permissions
- ├── Business Settings
- ├── Industry Configuration
- │
- ├── Products
- │    ├── Categories
- │    ├── Brands
- │    ├── Variants
- │    └── Product Attributes
- │
- ├── Inventory
- │    ├── Stock
- │    ├── Stock Locations
- │    └── Inventory Movements
- │
- ├── Suppliers
- │    └── Purchases
- │         └── Purchase Items
- │
- ├── Customers
- │
- ├── POS
- │    └── Sales
- │         ├── Sale Items
- │         ├── Payments
- │         └── Returns
- │
- ├── Invoices
- │
- ├── Analytics
- │
- ├── AI
- │
- ├── Notifications
- │
- └── Audit Logs
-```
-
----
-
-# 5. Tenant Model
-
-The `Tenant` represents an individual business using Buzzsynx.
+A `Tenant` represents a business using Buzzsynx.
 
 Example:
 
 ```text
-Tenant 1
-Name: Sri Lakshmi Pharmacy
-Industry: PHARMACY
-
-Tenant 2
+Tenant
 Name: ABC Supermarket
 Industry: SUPERMARKET
-
-Tenant 3
-Name: Fashion Hub
-Industry: CLOTHING
-
-Tenant 4
-Name: Spice Garden
-Industry: RESTAURANT
+Status: ACTIVE
 ```
 
-### Core fields
+Core fields:
 
 ```text
 Tenant
@@ -256,85 +266,66 @@ createdAt
 updatedAt
 ```
 
-### Industry type
+Possible initial industry types:
 
-Possible values:
+```text
+SUPERMARKET
+```
+
+Future:
 
 ```text
 PHARMACY
-SUPERMARKET
 CLOTHING
 RESTAURANT
+CLINIC
 GENERAL_RETAIL
 ```
 
-The architecture should allow additional industries later.
+The system should allow additional industries without redesigning the shared core.
 
 ---
 
-# 6. Tenant Isolation Model
+# 8. Tenant Lifecycle
 
-Buzzsynx uses a **shared database / shared schema / tenantId isolation** strategy initially.
+A tenant may have the following lifecycle:
+
+```text
+PENDING
+ACTIVE
+SUSPENDED
+ARCHIVED
+```
+
+Owner onboarding should not be blocked by manual platform approval.
 
 Conceptually:
 
 ```text
-PostgreSQL
-│
-├── Tenant A records
-├── Tenant B records
-├── Tenant C records
-└── Tenant D records
+User Signup
+    ↓
+Tenant Creation
+    ↓
+Initial Store Creation
+    ↓
+Owner Membership
+    ↓
+Default Configuration
+    ↓
+Dashboard Access
+    ↓
+Platform Review / Control
 ```
 
-Every tenant-owned table should contain:
-
-```text
-tenantId
-```
-
-Example:
-
-```text
-Product
-------
-id
-tenantId
-name
-sku
-price
-...
-```
-
-The backend must always scope queries by tenant.
-
-Correct:
-
-```javascript
-prisma.product.findMany({
-  where: {
-    tenantId: currentTenantId
-  }
-});
-```
-
-Incorrect:
-
-```javascript
-prisma.product.findMany();
-```
-
-unless the operation is explicitly system-level.
+Super Admin may subsequently suspend, activate, or otherwise manage the tenant.
 
 ---
 
-# 7. Authentication and User Data
+# 9. User and Membership Model
 
-## User
+## 9.1 User
 
-Represents an individual Buzzsynx account.
-
-Possible fields:
+A `User` represents a Buzzsynx account.
 
 ```text
 User
@@ -348,13 +339,13 @@ createdAt
 updatedAt
 ```
 
-A user may belong to one or more tenants depending on the future account model.
+A user account may participate in one or more tenants.
 
 ---
 
-## TenantUser
+## 9.2 TenantUser / Membership
 
-A membership model should be considered when users can work across multiple businesses.
+`TenantUser` is mandatory for tenant membership.
 
 ```text
 TenantUser
@@ -362,13 +353,12 @@ TenantUser
 id
 tenantId
 userId
-roleId
 status
 createdAt
 updatedAt
 ```
 
-This provides:
+A membership establishes:
 
 ```text
 User
@@ -378,27 +368,114 @@ TenantUser
 Tenant
 ```
 
-and allows the same account to potentially participate in multiple tenants.
+A user can therefore potentially belong to multiple businesses without duplicating the underlying account.
 
 ---
 
-# 8. Roles and Permissions
+# 10. Store Membership Scope
 
-Buzzsynx uses RBAC.
+A membership may optionally be assigned to one or more stores depending on the user's role and business configuration.
 
-Example roles:
+Conceptually:
+
+```text
+User
+ ↓
+TenantUser
+ ↓
+Role + Permissions
+ ↓
+Store Scope
+```
+
+Examples:
+
+```text
+Owner
+→ All stores
+
+Admin / Manager
+→ Assigned stores
+
+Cashier
+→ Assigned store
+
+Store Staff
+→ Assigned store
+
+Accountant
+→ Tenant-level financial access or configured store scope
+```
+
+The exact permission model is controlled by RBAC and store scope.
+
+---
+
+# 11. Roles and Permissions
+
+Buzzsynx uses permission-based RBAC.
+
+## Platform Role
+
+```text
+SUPER_ADMIN
+```
+
+Super Admin operates at the Buzzsynx platform level.
+
+## Tenant Roles
 
 ```text
 OWNER
 ADMIN
 MANAGER
 CASHIER
-INVENTORY_MANAGER
 ACCOUNTANT
-STAFF
+STORE_STAFF
 ```
 
-The exact role set may evolve.
+The application should not depend exclusively on role names.
+
+Permissions should control actual capabilities.
+
+Examples:
+
+```text
+product.create
+product.update
+product.archive
+
+inventory.view
+inventory.adjust
+inventory.transfer
+
+sale.create
+sale.view
+sale.cancel
+sale.refund
+
+purchase.create
+purchase.receive
+purchase.view
+
+customer.view
+customer.create
+customer.update
+
+payment.view
+payment.record
+payment.refund
+
+report.view
+
+settings.manage
+
+users.manage
+```
+
+---
+
+# 12. Role and Permission Entities
 
 Core entities:
 
@@ -409,55 +486,67 @@ RolePermission
 TenantUser
 ```
 
-Relationship:
+Conceptually:
 
 ```text
 TenantUser
     ↓
-  Role
+Role
     ↓
 RolePermission
     ↓
 Permission
 ```
 
-Permissions should be granular enough to control operations such as:
-
-```text
-product.create
-product.update
-product.delete
-
-inventory.view
-inventory.adjust
-inventory.transfer
-
-sale.create
-sale.refund
-
-purchase.create
-purchase.receive
-
-customer.view
-customer.create
-
-report.view
-
-settings.manage
-```
+Permissions should be granular enough to support future role customization without creating a new role for every business variation.
 
 ---
 
-# 9. Business Configuration
+# 13. Store / Branch Model
 
-Each tenant should have configurable business settings.
+A store represents an operational branch of a tenant.
 
-Possible configuration domains:
+```text
+Store
+-----
+id
+tenantId
+name
+code
+address
+phone
+status
+timezone
+createdAt
+updatedAt
+```
+
+Examples:
+
+```text
+Main Store
+Branch 1
+Branch 2
+Warehouse
+```
+
+The MVP may begin with one store.
+
+The database should nevertheless support multiple stores from the beginning.
+
+---
+
+# 14. Business Configuration
+
+Business configuration should remain separate from transactional records.
+
+Configuration areas may include:
 
 ```text
 Business Profile
 Tax Settings
 Currency
+Timezone
 Invoice Settings
 POS Settings
 Inventory Settings
@@ -471,22 +560,23 @@ Example:
 ```text
 BusinessSettings
 ----------------
+id
 tenantId
 currency
 timezone
 taxMode
 invoicePrefix
-lowStockThreshold
-...
+createdAt
+updatedAt
 ```
 
-Configuration should be stored separately from transactional data.
+Store-specific settings may be introduced where operational behavior differs by branch.
 
 ---
 
-# 10. Product Domain
+# 15. Product Domain
 
-The product domain is shared across most industries.
+The product domain is shared across most retail industries.
 
 Core entities:
 
@@ -495,44 +585,33 @@ Product
 Category
 Brand
 ProductVariant
-ProductAttribute
-ProductImage
 Unit
+ProductImage
 ```
+
+Not every future industry needs every field.
+
+The shared product model should remain clean.
 
 ---
 
-# 11. Product
+# 16. Product
 
-A product represents the logical business item.
+A product represents a logical business item.
 
-Example:
+Examples:
+
+```text
+Basmati Rice 5kg
+Tata Salt 1kg
+Coca-Cola 750ml
+```
+
+Possible fields:
 
 ```text
 Product
 -------
-Paracetamol 500mg
-```
-
-or:
-
-```text
-Product
--------
-Men's T-Shirt
-```
-
-or:
-
-```text
-Product
--------
-Basmati Rice
-```
-
-Potential fields:
-
-```text
 id
 tenantId
 categoryId
@@ -551,27 +630,22 @@ createdAt
 updatedAt
 ```
 
-Not every industry will use every field.
+For MVP, this model should remain focused on supermarket/grocery requirements.
 
 ---
 
-# 12. Product Variants
+# 17. Product Variants
 
-Variants are especially important for clothing and other businesses where one logical product has multiple sellable variations.
+Variants represent independently sellable versions of a product.
 
-Example:
+Examples from future clothing capability:
 
 ```text
-Product
-Men's T-Shirt
-
-Variants:
-M / Black
-M / White
-L / Black
-L / White
-XL / Black
-XL / White
+T-Shirt
+├── M / Black
+├── M / White
+├── L / Black
+└── L / White
 ```
 
 Possible model:
@@ -592,123 +666,79 @@ createdAt
 updatedAt
 ```
 
-The `attributes` structure may initially use JSON where appropriate.
+`attributes` may initially use JSON where appropriate.
 
-Later, heavily-used attributes can be normalized if required.
+Frequently queried attributes can be normalized later if justified by actual requirements.
 
 ---
 
-# 13. Industry-Specific Product Data
+# 18. Product Commercial Data
 
-The shared Product model should remain clean.
+Product-level pricing represents current/default commercial information.
 
-Industry-specific data should be represented through capability-specific models.
+Historical transactions must not depend on the current Product price.
 
-### Pharmacy
-
-Possible entities:
+For example:
 
 ```text
-MedicineDetails
-MedicineBatch
-Expiry
-Manufacturer
-PrescriptionRequirement
+Product current selling price = ₹120
 ```
 
-Example:
+Historical transaction:
 
 ```text
-Medicine
---------
-productId
-genericName
-strength
-dosageForm
-prescriptionRequired
-manufacturerId
+SaleItem.unitPrice = ₹100
 ```
 
-Batch information:
+The historical sale remains ₹100.
+
+Therefore:
 
 ```text
-MedicineBatch
--------------
-id
-tenantId
-productId
-batchNumber
-expiryDate
-mrp
-purchasePrice
-quantity
+Product
+→ Current/default business data
+
+SaleItem
+→ Historical transaction snapshot
 ```
 
 ---
 
-### Supermarket
+# 19. Category and Brand
 
-Important attributes:
+Categories organize products.
 
-```text
-barcode
-unit
-weight
-bulkPricing
-offer
-```
-
----
-
-### Clothing
-
-Important attributes:
+Examples:
 
 ```text
-size
-color
-material
-variant
-```
-
----
-
-### Restaurant
-
-Products may represent menu items while separate entities manage ingredients and recipes.
-
-Possible entities:
-
-```text
-MenuItem
-Ingredient
-Recipe
-RecipeItem
-```
-
----
-
-# 14. Category and Brand
-
-Categories allow product organization.
-
-Example:
-
-```text
-Electronics
-Clothing
 Groceries
-Medicines
 Beverages
+Snacks
+Dairy
+Personal Care
+Household
 ```
 
-Brands allow grouping by manufacturer or brand.
+Brands provide product grouping.
 
 Both should normally be tenant-scoped.
 
+Example:
+
+```text
+Category
+---------
+id
+tenantId
+name
+status
+createdAt
+updatedAt
+```
+
 ---
 
-# 15. Supplier Domain
+# 20. Supplier Domain
 
 Core entities:
 
@@ -716,10 +746,9 @@ Core entities:
 Supplier
 Purchase
 PurchaseItem
-PurchasePayment
 ```
 
-### Supplier
+Supplier:
 
 ```text
 Supplier
@@ -736,23 +765,13 @@ createdAt
 updatedAt
 ```
 
+Supplier payments may later be modeled through a dedicated supplier payable/payment capability.
+
 ---
 
-# 16. Purchase Domain
+# 21. Purchase Domain
 
 A purchase represents inventory acquired from a supplier.
-
-Example:
-
-```text
-Purchase
---------
-Supplier: ABC Distributors
-
-Items:
-Paracetamol × 100
-Vitamin C × 50
-```
 
 Core fields:
 
@@ -761,6 +780,7 @@ Purchase
 --------
 id
 tenantId
+storeId
 supplierId
 purchaseNumber
 status
@@ -773,9 +793,13 @@ createdAt
 updatedAt
 ```
 
+Purchase order workflows may be introduced later.
+
+For MVP, direct purchase/receiving workflows may be sufficient.
+
 ---
 
-# 17. Purchase Items
+# 22. Purchase Items
 
 ```text
 PurchaseItem
@@ -792,7 +816,7 @@ discountAmount
 totalAmount
 ```
 
-When a purchase is received, it should generate inventory movements.
+When inventory is received:
 
 ```text
 Purchase
@@ -801,99 +825,90 @@ PurchaseItem
    ↓
 InventoryMovement
    ↓
-Stock
+Stock update
 ```
+
+The stock update and movement creation must occur transactionally.
 
 ---
 
-# 18. Inventory Domain
+# 23. Inventory Domain
 
 Inventory is one of the most critical domains in Buzzsynx.
 
 Core entities:
 
 ```text
-StockLocation
 Stock
 InventoryMovement
-StockTransfer
 StockAdjustment
+StockTransfer
+```
+
+Inventory must distinguish between:
+
+```text
+Historical stock changes
+        ↓
+InventoryMovement
+
+Current operational state
+        ↓
+Stock
 ```
 
 ---
 
-# 19. Stock Location
+# 24. Stock
 
-A business may eventually have multiple locations.
-
-Examples:
-
-```text
-Main Store
-Warehouse
-Branch 1
-Branch 2
-Cold Storage
-```
-
-Model:
-
-```text
-StockLocation
--------------
-id
-tenantId
-name
-type
-address
-status
-createdAt
-updatedAt
-```
-
-Even if version one supports only one location, designing around locations avoids painful restructuring later.
-
----
-
-# 20. Stock
-
-Stock represents the current calculated/maintained inventory state for a product at a location.
+`Stock` represents the current operational inventory state.
 
 ```text
 Stock
 -----
 id
 tenantId
-locationId
+storeId
 productId
 variantId
 quantity
 reservedQuantity
-availableQuantity
 updatedAt
 ```
 
-A unique constraint should prevent duplicate stock records for the same:
+A unique constraint should prevent duplicate stock records for:
 
 ```text
 tenantId
-locationId
+storeId
 productId
 variantId
 ```
 
+If reservations are not required in the initial MVP, `reservedQuantity` may be deferred.
+
+If used:
+
+```text
+availableQuantity
+=
+quantity - reservedQuantity
+```
+
+It does not need to become a separate authoritative stored value unless required for performance.
+
 ---
 
-# 21. Inventory Movement Ledger
+# 25. Inventory Movement Ledger
 
-Every meaningful stock change should create an inventory movement.
+Every meaningful stock change must create an inventory movement.
 
 ```text
 InventoryMovement
 -----------------
 id
 tenantId
-locationId
+storeId
 productId
 variantId
 movementType
@@ -908,44 +923,50 @@ createdAt
 Movement types:
 
 ```text
+OPENING_STOCK
+
 PURCHASE
 SALE
+
 SALE_RETURN
 PURCHASE_RETURN
+
 TRANSFER_IN
 TRANSFER_OUT
+
 DAMAGE
 EXPIRY
+
 ADJUSTMENT
-OPENING_STOCK
 ```
 
 Example:
 
 ```text
-Purchase 100 units
-        ↓
+Purchase 100
+    ↓
 +100 PURCHASE
 
-Sale 5 units
-        ↓
+Sale 5
+    ↓
 -5 SALE
 
-Damage 2 units
-        ↓
+Damage 2
+    ↓
 -2 DAMAGE
 ```
 
-This creates an auditable stock history.
+The movement ledger provides the historical stock trail.
 
 ---
 
-# 22. Inventory Consistency
+# 26. Inventory Consistency
 
-The conceptual inventory equation is:
+Conceptually:
 
 ```text
 Current Stock =
+
 Opening Stock
 + Purchases
 + Returns In
@@ -958,11 +979,67 @@ Opening Stock
 ± Adjustments
 ```
 
-The exact implementation may maintain a current stock table for performance while preserving the movement ledger as the historical record.
+The implementation may maintain a current `Stock` table for fast operational access while preserving the movement ledger as the historical record.
 
 ---
 
-# 23. POS Domain
+# 27. Inventory Adjustment
+
+An adjustment should record the actual counted quantity and calculated difference.
+
+Conceptually:
+
+```text
+Current Stock
+      ↓
+Physical Count
+      ↓
+Calculate Difference
+      ↓
+Create Adjustment
+      ↓
+Create InventoryMovement
+      ↓
+Update Stock
+```
+
+Adjustment records should preserve:
+
+* Reason
+* Previous quantity where required
+* Counted quantity
+* Difference
+* User
+* Store
+* Timestamp
+
+---
+
+# 28. Stock Transfer
+
+Transfers support movement between stores or stock locations.
+
+Conceptually:
+
+```text
+Store A
+   ↓
+TRANSFER_OUT
+   ↓
+Transfer
+   ↓
+TRANSFER_IN
+   ↓
+Store B
+```
+
+Transfers must be transactional and auditable.
+
+The MVP may keep advanced transfer workflows minimal, but the database should not prevent future multi-store operations.
+
+---
+
+# 29. POS Domain
 
 POS is responsible for fast transaction processing.
 
@@ -975,21 +1052,44 @@ Payment
 Invoice
 SaleReturn
 SaleReturnItem
+Refund
+```
+
+The supermarket POS should optimize for:
+
+```text
+Barcode / Search
+      ↓
+Product Lookup
+      ↓
+Cart
+      ↓
+Stock Validation
+      ↓
+Price / Tax / Discount
+      ↓
+Payment
+      ↓
+Sale Completion
+      ↓
+Inventory Movement
+      ↓
+Invoice
 ```
 
 ---
 
-# 24. Sale
+# 30. Sale
 
-A sale represents a completed or in-progress customer transaction.
+A sale represents a customer transaction.
 
 ```text
 Sale
 ----
 id
 tenantId
+storeId
 customerId
-locationId
 saleNumber
 status
 subtotal
@@ -999,6 +1099,7 @@ totalAmount
 createdBy
 createdAt
 updatedAt
+completedAt
 ```
 
 Possible statuses:
@@ -1008,13 +1109,15 @@ DRAFT
 PENDING
 COMPLETED
 CANCELLED
-REFUNDED
 PARTIALLY_REFUNDED
+REFUNDED
 ```
+
+`customerId` may be nullable because supermarket POS must support anonymous/walk-in customers.
 
 ---
 
-# 25. Sale Items
+# 31. Sale Items
 
 ```text
 SaleItem
@@ -1031,30 +1134,17 @@ taxAmount
 totalAmount
 ```
 
-Important historical rule:
+Sale items must preserve the commercial values used during the transaction.
 
-The sale item should store the price used during the transaction.
-
-It should not depend on the current product price.
-
-For example:
-
-```text
-Product current price: ₹120
-
-Historical sale:
-unitPrice: ₹100
-```
-
-The historical transaction remains ₹100 even after the product price changes.
+They must not dynamically reference the current product selling price.
 
 ---
 
-# 26. Payment Domain
+# 32. Payment Domain
 
-A sale and payment should remain separate concepts.
+Payment is a separate business concept from the sale.
 
-One sale can potentially contain multiple payments.
+One sale may have multiple payments.
 
 Example:
 
@@ -1065,23 +1155,25 @@ Cash = ₹400
 UPI = ₹600
 ```
 
-Possible model:
+Model:
 
 ```text
 Payment
 -------
 id
 tenantId
+storeId
 saleId
 paymentMethod
 amount
 status
 transactionReference
+provider
 paidAt
 createdAt
 ```
 
-Payment methods:
+Payment methods may include:
 
 ```text
 CASH
@@ -1089,21 +1181,61 @@ CARD
 UPI
 BANK_TRANSFER
 WALLET
-CREDIT
 OTHER
 ```
 
+Credit/receivable should not simply be treated as a successful payment method.
+
+It should have an explicit receivable/credit workflow when implemented.
+
 ---
 
-# 27. Invoice Domain
+# 33. Payment Lifecycle
 
-Invoices should preserve transaction information.
+Payment status should support asynchronous payment providers.
+
+Possible states:
+
+```text
+PENDING
+AUTHORIZED
+PAID
+FAILED
+CANCELLED
+REFUNDED
+PARTIALLY_REFUNDED
+```
+
+For external gateways:
+
+```text
+Sale
+ ↓
+Payment Intent
+ ↓
+Payment Provider
+ ↓
+Webhook / Verification
+ ↓
+Payment Status
+ ↓
+Sale Finalization
+```
+
+Gateway webhooks must be idempotent and verified.
+
+---
+
+# 34. Invoice Domain
+
+An invoice represents the financial document associated with a sale.
 
 ```text
 Invoice
 -------
 id
 tenantId
+storeId
 saleId
 invoiceNumber
 status
@@ -1115,7 +1247,7 @@ issuedAt
 createdAt
 ```
 
-Invoice numbering must be tenant-specific and configurable.
+Invoice numbering must be unique according to the tenant/store numbering policy.
 
 Example:
 
@@ -1126,7 +1258,33 @@ INV-2026-000002
 
 ---
 
-# 28. Customer Domain
+# 35. Invoice Record vs Invoice Document
+
+The invoice record is part of the transactional business operation.
+
+The actual PDF/document generation should not unnecessarily block the critical POS transaction.
+
+Preferred architecture:
+
+```text
+Database Transaction
+        ↓
+Invoice Record Created
+        ↓
+COMMIT
+        ↓
+BullMQ Job
+        ↓
+PDF Generation
+        ↓
+Email / WhatsApp / Download / Print
+```
+
+A failure in PDF generation or notification must not roll back a successfully completed sale.
+
+---
+
+# 36. Customer Domain
 
 Customers are tenant-specific.
 
@@ -1145,36 +1303,38 @@ createdAt
 updatedAt
 ```
 
-Customers may later support:
+Customer association with a sale is optional for walk-in retail transactions.
+
+Future capabilities may include:
 
 ```text
-Purchase history
-Credit balance
-Loyalty points
+Purchase History
+Credit Balance
+Loyalty
 Preferences
-Marketing consent
+Marketing Consent
 ```
 
-These should be added as separate capabilities where appropriate rather than making the base customer table excessively large.
+These should be introduced as dedicated capabilities rather than making the base customer model unnecessarily large.
 
 ---
 
-# 29. Returns and Refunds
+# 37. Returns and Refunds
 
-Returns should be represented as separate business events.
+Returns must be represented as separate business events.
 
-Avoid simply changing the original sale.
+Do not silently modify the original sale.
 
-Example:
+Conceptually:
 
 ```text
 Original Sale
      ↓
-Return
+Sale Return
      ↓
 Inventory Movement
      ↓
-Refund
+Refund / Credit / Exchange
 ```
 
 Core entities:
@@ -1185,98 +1345,42 @@ SaleReturnItem
 Refund
 ```
 
-This preserves history.
+A return should preserve:
 
----
+* Original sale reference
+* Returned items
+* Quantity
+* Reason
+* Condition/disposition
+* Store
+* User
+* Refund state
 
-# 30. Restaurant Capability
+Not every returned item must automatically be returned to sellable stock.
 
-Restaurant functionality requires additional models.
-
-Possible entities:
-
-```text
-Menu
-MenuItem
-Ingredient
-Recipe
-RecipeItem
-DiningTable
-Order
-OrderItem
-KitchenOrder
-KitchenOrderItem
-```
-
-Conceptually:
+For example:
 
 ```text
-Menu Item
-    ↓
-Recipe
-    ↓
-Ingredients
-    ↓
-Inventory
-```
-
-Example:
-
-```text
-Chicken Biryani
+Customer Return
       ↓
-Rice
-Chicken
-Spices
-Oil
+Damaged
       ↓
-Inventory consumption
+DAMAGE movement
 ```
 
-The restaurant capability should integrate with the shared inventory and sales systems.
+rather than:
+
+```text
+Customer Return
+      ↓
+Sellable Stock
+```
 
 ---
 
-# 31. Pharmacy Capability
+# 38. Analytics Data
 
-Pharmacy-specific models may include:
-
-```text
-MedicineDetails
-MedicineBatch
-Manufacturer
-Prescription
-```
-
-Important data:
-
-```text
-Batch Number
-Expiry Date
-MRP
-Manufacturer
-Prescription Requirement
-```
-
-Expiry-aware inventory is particularly important.
-
-Example:
-
-```text
-Product
-  ↓
-Multiple Batches
-  ↓
-Expiry Dates
-```
-
-The system should support batch-aware stock deduction where required.
-
----
-
-# 32. Analytics Data
-
-Analytics should initially use transactional data from PostgreSQL.
+Analytics should initially use PostgreSQL transactional data.
 
 Examples:
 
@@ -1291,33 +1395,48 @@ Customer Trends
 Profit Estimates
 ```
 
-The first implementation should avoid creating a completely separate analytics database unnecessarily.
-
-Queries, indexes, aggregation tables, or scheduled summaries can be introduced as data volume grows.
-
----
-
-# 33. AI Data Architecture
-
-AI should use historical business data rather than directly modifying transactional data.
-
-Conceptually:
+Initial strategy:
 
 ```text
 PostgreSQL
     ↓
-Analytics / Aggregation
+Queries / Aggregations
+    ↓
+Dashboard
+```
+
+As volume grows, introduce:
+
+```text
+Summary Tables
+Materialized Views
+Scheduled Aggregations
+Read Models
+```
+
+A separate analytics database should only be introduced when justified by actual scale.
+
+---
+
+# 39. AI Data Architecture
+
+AI should consume authoritative or derived business data.
+
+Preferred flow:
+
+```text
+PostgreSQL
+    ↓
+Analytics / Business Data
     ↓
 AI Processing
     ↓
-AI Insight
-    ↓
-Recommendation
+AI Insight / Recommendation
     ↓
 Business User
 ```
 
-Possible AI-related entities:
+Possible future entities:
 
 ```text
 AIInsight
@@ -1326,40 +1445,61 @@ AIForecast
 AIJob
 ```
 
-Example:
-
-```text
-AIRecommendation
------------------
-id
-tenantId
-type
-title
-description
-priority
-data
-status
-createdAt
-expiresAt
-```
-
-Examples:
-
-```text
-"Product X may run out within 5 days."
-
-"Product Y has had no sales for 45 days."
-
-"Weekend demand is increasing."
-
-"Stock level appears unusually high."
-```
-
-AI should recommend actions, while transactional actions remain controlled by normal business workflows.
+These are not all required for the initial MVP.
 
 ---
 
-# 34. Notification Domain
+# 40. AI Safety Boundary
+
+AI must not directly bypass business services.
+
+Incorrect:
+
+```text
+AI
+ ↓
+Direct Database Update
+```
+
+Preferred:
+
+```text
+AI
+ ↓
+Recommendation
+ ↓
+Business Service
+ ↓
+Validation
+ ↓
+Authorization
+ ↓
+Database Transaction
+```
+
+Example:
+
+```text
+AI detects low stock
+       ↓
+Reorder recommendation
+       ↓
+Owner reviews
+       ↓
+Purchase workflow
+       ↓
+Purchase created
+       ↓
+Inventory received
+```
+
+AI provides intelligence.
+
+Business services remain authoritative.
+
+---
+
+# 41. Notification Domain
 
 Notifications may include:
 
@@ -1372,34 +1512,34 @@ NotificationDelivery
 Examples:
 
 ```text
-Low stock
-Expiry alert
-Payment failure
-AI recommendation
-Purchase received
-System alert
+Low Stock
+Expiry Alert
+Payment Failure
+AI Recommendation
+Purchase Received
+System Alert
 ```
 
-Notifications should be tenant-scoped when they relate to business activity.
+Notifications should normally be generated asynchronously after the successful business transaction.
 
 ---
 
-# 35. Audit Log
+# 42. Audit Log
 
-Auditability is important for a business SaaS.
-
-Core model:
+Auditability is required for important business operations.
 
 ```text
 AuditLog
 --------
 id
 tenantId
+storeId
 userId
 action
 entityType
 entityId
 metadata
+requestId
 ipAddress
 userAgent
 createdAt
@@ -1411,43 +1551,48 @@ Examples:
 PRODUCT_CREATED
 PRODUCT_UPDATED
 SALE_CREATED
+SALE_CANCELLED
 SALE_REFUNDED
 STOCK_ADJUSTED
+STOCK_TRANSFERRED
 USER_ROLE_CHANGED
 SETTINGS_UPDATED
 ```
 
-Audit logs should generally be append-only.
+Audit records should generally be append-only.
 
 ---
 
-# 36. Soft Delete Strategy
+# 43. Soft Delete Strategy
 
-Not every entity should be physically deleted.
+Soft deletion should be used only where appropriate.
 
-For business-critical records, prefer statuses or soft deletion where appropriate.
-
-Possible field:
+Possible:
 
 ```text
 deletedAt
 ```
 
-Examples:
+Suitable examples:
 
 ```text
 Product
 Customer
 Supplier
-User
 Category
+Brand
+User
 ```
 
-Historical transactional records such as completed sales should generally remain available.
+Completed transactions should generally not be deleted.
+
+Historical financial and inventory records should be preserved.
+
+For transactional records, status/reversal/return mechanisms should normally be preferred over deletion.
 
 ---
 
-# 37. IDs
+# 44. IDs
 
 Database entities should use stable unique identifiers.
 
@@ -1457,9 +1602,7 @@ Recommended:
 UUID
 ```
 
-or another strong generated identifier supported consistently across the application.
-
-Human-readable numbers should be separate.
+Human-readable business numbers must remain separate.
 
 Example:
 
@@ -1471,11 +1614,11 @@ Sale Number:
 SAL-2026-000182
 ```
 
-Never use human-readable invoice/sale numbers as the primary database identity.
+Human-readable numbers must never be the primary database identity.
 
 ---
 
-# 38. Timestamps
+# 45. Timestamps
 
 Business entities should generally include:
 
@@ -1494,25 +1637,23 @@ issuedAt
 receivedAt
 ```
 
-All timestamps should be handled consistently, preferably using UTC at the persistence layer.
+Persistence should use UTC.
 
-Tenant-level timezone configuration should control business-facing date/time presentation.
+Tenant timezone configuration controls business-facing presentation and reporting.
 
 ---
 
-# 39. Monetary Values
+# 46. Monetary Values
 
-Money should not be stored using JavaScript floating-point arithmetic.
+Money must use exact decimal representation.
 
-Database monetary values should use a suitable exact numeric/decimal representation.
-
-Example:
+Recommended database representation:
 
 ```text
-Decimal
+Decimal / NUMERIC
 ```
 
-This is important for:
+Applicable fields include:
 
 ```text
 Price
@@ -1526,83 +1667,74 @@ Cost
 Profit
 ```
 
-Example:
-
-```text
-99.95
-```
-
-should not be represented using an imprecise binary floating-point value for financial calculations.
+JavaScript floating-point arithmetic must not be treated as the authoritative representation for financial calculations.
 
 ---
 
-# 40. Transaction Management
+# 47. Critical Transaction Management
 
-Critical operations must use PostgreSQL transactions.
+Critical business operations must use PostgreSQL transactions.
 
-### POS sale
+## POS Transaction
+
+Conceptually:
 
 ```text
 BEGIN TRANSACTION
 
-Validate cart
-      ↓
-Validate stock
-      ↓
+Validate Tenant
+Validate Store Scope
+Validate Product
+Validate Stock
+Calculate Price / Tax / Discount
+
 Create Sale
-      ↓
 Create Sale Items
-      ↓
-Create Payment
-      ↓
+Record Payment State
 Create Inventory Movements
-      ↓
 Update Stock
-      ↓
-Create Invoice
-      ↓
-Create Audit Log
+Create Invoice Record
+Create Audit Event
 
 COMMIT
 ```
 
-If any critical operation fails:
+If a critical operation fails:
 
 ```text
 ROLLBACK
 ```
 
-This prevents partial sales.
+The transaction must not leave the database in a partially completed business state.
+
+External payment provider communication should not be treated as an ordinary database operation inside a long-running transaction.
 
 ---
 
-# 41. Purchase Receiving Transaction
+# 48. Purchase Receiving Transaction
 
 ```text
 BEGIN
 
 Validate Purchase
-      ↓
-Receive Purchase
-      ↓
-Create Purchase Items
-      ↓
+Validate Store Scope
+Receive Goods
+Create / Update Purchase Items
 Create Inventory Movements
-      ↓
 Update Stock
-      ↓
 Update Purchase Status
-      ↓
-Audit Log
+Create Audit Event
 
 COMMIT
 ```
 
+All inventory changes must remain consistent with the purchase receiving state.
+
 ---
 
-# 42. Concurrency and Stock Safety
+# 49. Concurrency and Stock Safety
 
-Inventory operations must account for concurrent transactions.
+Inventory operations must account for concurrent POS transactions.
 
 Example:
 
@@ -1610,61 +1742,92 @@ Example:
 Stock = 5
 ```
 
-Two POS terminals simultaneously attempt:
+Two terminals simultaneously attempt:
 
 ```text
-Terminal A → buys 4
-Terminal B → buys 3
+Terminal A → Buy 4
+Terminal B → Buy 3
 ```
 
-The database must prevent both transactions from incorrectly assuming that five units are independently available.
+The database must prevent both transactions from independently assuming five units are available.
 
-Stock updates should therefore use appropriate transaction isolation, locking, or atomic update strategies.
+Appropriate mechanisms may include:
 
-This is a database integrity requirement, not merely a frontend concern.
+* PostgreSQL row-level locking
+* Atomic stock updates
+* Transaction isolation
+* Conditional updates
+* Proper transaction boundaries
+
+The final strategy must be validated through concurrency tests.
+
+Inventory safety is a database integrity requirement, not a frontend responsibility.
 
 ---
 
-# 43. Database Constraints
+# 50. Database Constraints
 
-Important constraints include:
-
-### Unique constraints
+## 50.1 Unique Constraints
 
 Examples:
 
 ```text
 Tenant.slug
+
 User.email
+
 TenantUser(tenantId, userId)
+
+Store(tenantId, code)
+
 Product(tenantId, sku)
+
 ProductVariant(tenantId, sku)
+
 Invoice(tenantId, invoiceNumber)
+
 Sale(tenantId, saleNumber)
 ```
 
-Uniqueness should generally be tenant-scoped where appropriate.
+Where uniqueness depends on store scope, include `storeId`.
+
+For example:
+
+```text
+(tenantId, storeId, invoiceNumber)
+```
+
+The exact numbering scope should be finalized in the invoice/business settings design.
 
 ---
 
-### Foreign keys
+## 50.2 Foreign Keys
 
-Relationships should use foreign keys wherever practical.
+Foreign keys should be used wherever practical.
 
-Example:
+Examples:
 
 ```text
 SaleItem.saleId → Sale.id
+
 SaleItem.productId → Product.id
+
 PurchaseItem.purchaseId → Purchase.id
+
+PurchaseItem.productId → Product.id
+
 InventoryMovement.productId → Product.id
+
+InventoryMovement.storeId → Store.id
+
+TenantUser.tenantId → Tenant.id
 ```
 
 ---
 
-### Check constraints
+## 50.3 Check Constraints
 
-Use database-level constraints where valuable.
+Database-level constraints should protect important invariants.
 
 Examples:
 
@@ -1675,25 +1838,57 @@ price >= 0
 taxRate >= 0
 ```
 
-Application validation should still exist, but important integrity rules should not rely solely on frontend validation.
+Application-level validation remains necessary.
+
+Database constraints provide an additional integrity boundary.
 
 ---
 
-# 44. Indexing Strategy
+# 51. Tenant and Store Integrity
 
-Indexes should be designed around actual query patterns.
+Cross-tenant references must never be allowed.
 
-Common indexes:
+For example:
+
+```text
+Tenant A Product
+        ↓
+Tenant B SaleItem
+```
+
+must be impossible.
+
+Similarly, store-scoped records must not accidentally reference a record belonging to another tenant or unauthorized store.
+
+Application services must validate tenant/store ownership before performing cross-entity operations.
+
+Where practical, database constraints should reinforce these relationships.
+
+---
+
+# 52. Indexing Strategy
+
+Indexes should follow actual query patterns.
+
+Common patterns include:
 
 ```text
 tenantId
+
 tenantId + status
+
 tenantId + createdAt
+
 tenantId + sku
+
 tenantId + barcode
+
 tenantId + productId
-tenantId + locationId
+
+tenantId + storeId
+
 tenantId + customerId
+
 tenantId + supplierId
 ```
 
@@ -1703,65 +1898,70 @@ Examples:
 Product
 INDEX (tenantId, sku)
 
+Product
+INDEX (tenantId, barcode)
+
 Sale
-INDEX (tenantId, createdAt)
+INDEX (tenantId, storeId, createdAt)
 
 InventoryMovement
-INDEX (tenantId, productId, createdAt)
+INDEX (tenantId, storeId, productId, createdAt)
 
 Stock
-INDEX (tenantId, locationId, productId)
+INDEX (tenantId, storeId, productId)
 ```
 
-The exact indexes should be finalized after query patterns are implemented and measured.
+Exact indexes should be finalized after actual query patterns are implemented and measured.
 
-Avoid blindly indexing every column.
+Do not blindly index every field.
 
 ---
 
-# 45. Search Strategy
+# 53. POS Search Strategy
 
-For common POS searches, the database should support efficient lookup by:
+Supermarket POS must support fast lookup by:
 
 ```text
-SKU
 Barcode
+SKU
 Product Name
 Variant SKU
 ```
 
-Example:
+Conceptually:
 
 ```text
-Barcode scan
+Barcode Scan
      ↓
-Product lookup
+Product Lookup
      ↓
-Variant resolution
+Variant Resolution
      ↓
-Stock lookup
+Store Stock Lookup
      ↓
-POS cart
+POS Cart
 ```
 
-PostgreSQL indexing should handle the initial implementation.
+PostgreSQL indexing should be sufficient for the initial implementation.
 
-A dedicated search engine should only be considered if actual scale and search requirements justify it.
+A dedicated search engine should only be introduced if actual scale or search requirements justify it.
 
 ---
 
-# 46. Redis and Database Relationship
-
-Redis is not the primary database.
+# 54. Redis and Database Relationship
 
 Architecture:
 
 ```text
 Application
     │
-    ├── PostgreSQL → Source of Truth
+    ├── PostgreSQL
+    │       ↓
+    │   Source of Truth
     │
-    └── Redis → Cache / Temporary State
+    └── Redis
+            ↓
+      Cache / Temporary State
 ```
 
 Redis may cache:
@@ -1771,17 +1971,18 @@ Product lookup
 Dashboard summaries
 Frequently accessed configuration
 Rate-limit counters
-Sessions where applicable
 Temporary POS state
 ```
 
 When cached data becomes stale, PostgreSQL remains authoritative.
 
+Critical business writes must not depend on Redis availability.
+
 ---
 
-# 47. Queue and Database Relationship
+# 55. Queue and Database Relationship
 
-BullMQ jobs should store references to database records rather than large business payloads where practical.
+BullMQ jobs should reference database records rather than duplicating large business payloads where practical.
 
 Example:
 
@@ -1789,7 +1990,8 @@ Example:
 Queue Job
    ↓
 tenantId
-saleId
+storeId
+entityId
 jobType
 ```
 
@@ -1798,68 +2000,50 @@ Worker:
 ```text
 Job
  ↓
-Fetch PostgreSQL data
+Fetch PostgreSQL Data
  ↓
 Process
  ↓
-Store result
+Persist Result
 ```
 
-This reduces stale or duplicated job data.
+Jobs should support:
+
+* Retry handling
+* Idempotency
+* Failure handling
+* Logging
+* Appropriate timeout behavior
 
 ---
 
-# 48. AI Processing and Database Safety
+# 56. Post-Transaction Background Processing
 
-AI workers must not directly bypass business rules.
+Non-critical work should happen after successful database commit.
 
-Incorrect:
-
-```text
-AI
- ↓
-Direct inventory update
-```
-
-Preferred:
+Examples:
 
 ```text
-AI
- ↓
-Recommendation
- ↓
-Business Service
- ↓
-Validation
- ↓
-Transaction
- ↓
-Database
+Sale committed
+    ↓
+Queue
+    ├── Generate invoice PDF
+    ├── Send notification
+    ├── Update analytics summary
+    └── Generate AI-related processing
 ```
 
-For example:
+These operations must not unnecessarily block the core POS transaction.
 
-```text
-AI recommends reorder
-        ↓
-User reviews
-        ↓
-Purchase workflow
-        ↓
-Purchase created
-        ↓
-Inventory received
-```
-
-AI should augment business operations rather than become an uncontrolled transactional layer.
+A transactional outbox or equivalent reliable post-commit dispatch mechanism may be introduced when required to guarantee event delivery.
 
 ---
 
-# 49. Data Lifecycle
+# 57. Data Lifecycle
 
 Buzzsynx should distinguish between:
 
-### Operational data
+## Operational Data
 
 Frequently accessed:
 
@@ -1870,7 +2054,7 @@ Customers
 Active Sales
 ```
 
-### Historical data
+## Historical Data
 
 Long-term business records:
 
@@ -1882,7 +2066,7 @@ Inventory Movements
 Audit Logs
 ```
 
-### Derived data
+## Derived Data
 
 Calculated or generated:
 
@@ -1890,61 +2074,60 @@ Calculated or generated:
 Analytics
 Forecasts
 AI Insights
-Dashboard summaries
+Dashboard Summaries
 ```
 
-Derived data can be rebuilt from authoritative records where practical.
+Derived data should be rebuildable from authoritative data where practical.
 
 ---
 
-# 50. Data Retention
+# 58. Data Retention
 
-Retention requirements will depend on:
+Retention requirements depend on:
 
 * Business requirements
 * Applicable regulations
-* Tenant plan
 * Financial/accounting requirements
-* Storage cost
+* Tenant plan
+* Storage costs
 
-The application should avoid permanently deleting important transactional history simply because a user removes an item from the UI.
+The application should not permanently delete important transactional history simply because a user removes an item from the UI.
 
-Retention and deletion policies will be finalized before production launch.
+Retention and deletion policies must be finalized before production launch.
 
 ---
 
-# 51. Backup and Recovery
+# 59. Backup and Recovery
 
 Production PostgreSQL must have:
 
 ```text
-Automated backups
-Point-in-time recovery where supported
-Backup monitoring
-Restore testing
-Recovery documentation
+Automated Backups
+Point-in-Time Recovery where supported
+Backup Monitoring
+Restore Testing
+Recovery Documentation
 ```
 
-Backups are not considered reliable until restoration has been tested.
+A backup strategy is not considered reliable until restoration has been tested.
 
 ---
 
-# 52. Migration Strategy
+# 60. Migration Strategy
 
-All schema changes must use version-controlled Prisma migrations.
-
-Example:
+All database schema changes must use version-controlled Prisma migrations.
 
 ```text
 prisma/
 ├── schema.prisma
+├── seed.js
 └── migrations/
     ├── migration_001
     ├── migration_002
     └── migration_003
 ```
 
-Production schema changes must never be performed manually without an appropriate migration process.
+Production schema changes must not be performed manually without an appropriate migration process.
 
 Migration principles:
 
@@ -1956,7 +2139,7 @@ Migration principles:
 
 ---
 
-# 53. Environment Separation
+# 61. Environment Separation
 
 Buzzsynx should maintain separate databases for:
 
@@ -1986,192 +2169,186 @@ Development data must never be assumed to represent production data.
 
 ---
 
-# 54. Seed Data
+# 62. Seed Data
 
-Prisma seed scripts should create development data such as:
+Prisma seed scripts should provide development and testing data such as:
 
 ```text
 Demo Tenant
+Demo Store
 Demo Users
 Roles
 Permissions
 Categories
+Brands
 Products
 Customers
 Suppliers
 Sample Inventory
 ```
 
-Industry demo tenants can be useful:
+For the initial MVP, the primary demo dataset should represent:
+
+```text
+Demo Supermarket
+```
+
+Future industry demo datasets can be added later:
 
 ```text
 Demo Pharmacy
-Demo Supermarket
 Demo Clothing Store
 Demo Restaurant
 ```
 
-This will make development and testing much easier.
+These should not become implementation dependencies for the supermarket MVP.
 
 ---
 
-# 55. Recommended Core Relationship Map
+# 63. Analytics and AI Data Safety
 
-The main business relationship is:
-
-```text
-Tenant
- │
- ├── Users
- │
- ├── Products
- │    ├── Categories
- │    ├── Brands
- │    └── Variants
- │
- ├── Locations
- │    └── Stock
- │
- ├── Suppliers
- │    └── Purchases
- │         └── Purchase Items
- │
- ├── Customers
- │
- ├── Sales
- │    ├── Sale Items
- │    └── Payments
- │
- ├── Invoices
- │
- ├── Inventory Movements
- │
- ├── AI Insights
- │
- ├── Notifications
- │
- └── Audit Logs
-```
-
-Industry capabilities attach to this shared model.
-
----
-
-# 56. Example: Pharmacy Data Flow
+Analytics and AI systems may read:
 
 ```text
-Tenant
-  ↓
-Medicine Product
-  ↓
-Medicine Details
-  ↓
-Medicine Batch
-  ↓
-Purchase
-  ↓
-Inventory Movement
-  ↓
-Stock
-  ↓
-POS Sale
-  ↓
-Batch-aware Stock Deduction
-  ↓
-Payment
-  ↓
-Invoice
-  ↓
-Analytics
-  ↓
-Expiry / Reorder AI
-```
-
----
-
-# 57. Example: Clothing Data Flow
-
-```text
-Tenant
-  ↓
-Product
-  ↓
-Variants
-  ├── M / Black
-  ├── M / White
-  ├── L / Black
-  └── L / White
-  ↓
-Stock
-  ↓
-POS
-  ↓
-Sale
-  ↓
-Payment
-  ↓
-Invoice
-```
-
-Each variant can maintain independent SKU and inventory.
-
----
-
-# 58. Example: Restaurant Data Flow
-
-```text
-Tenant
-  ↓
-Menu Item
-  ↓
-Recipe
-  ↓
-Ingredients
-  ↓
+Products
+Sales
+Purchases
 Inventory
-  ↓
-Restaurant Order
-  ↓
-Kitchen Workflow
-  ↓
-Payment
-  ↓
-Sale
-  ↓
+Customers
+Payments
+Business configuration
+```
+
+subject to authorization and data access rules.
+
+They must not directly modify critical transactional records.
+
+The authoritative flow remains:
+
+```text
+Business Data
+     ↓
+Analytics / AI
+     ↓
+Insight / Recommendation
+     ↓
+Business Workflow
+     ↓
+Validation + Authorization
+     ↓
+Transaction
+     ↓
+PostgreSQL
+```
+
+---
+
+# 64. Future Industry Capabilities
+
+Future industries should extend the shared database model instead of duplicating the entire platform.
+
+## Pharmacy
+
+Potential future entities:
+
+```text
+MedicineDetails
+MedicineBatch
+Manufacturer
+Prescription
+```
+
+Capabilities may include:
+
+```text
+Batch tracking
+Expiry tracking
+Prescription requirements
+Batch-aware stock deduction
+```
+
+---
+
+## Clothing
+
+Potential future entities/attributes:
+
+```text
+Size
+Color
+Material
+Variant attributes
+```
+
+Product variants can maintain independent:
+
+```text
+SKU
+Barcode
+Price
+Stock
+```
+
+---
+
+## Restaurant
+
+Potential future entities:
+
+```text
+Menu
+MenuItem
+Ingredient
+Recipe
+RecipeItem
+DiningTable
+RestaurantOrder
+OrderItem
+KitchenOrder
+```
+
+Conceptually:
+
+```text
+Menu Item
+    ↓
+Recipe
+    ↓
+Ingredients
+    ↓
 Inventory Consumption
 ```
 
-This allows restaurant-specific workflows without creating an entirely separate platform.
+These are future capabilities and should not unnecessarily enter the supermarket MVP schema.
 
 ---
 
-# 59. Example: Supermarket Data Flow
+# 65. Industry Capability Principle
+
+The database architecture follows:
 
 ```text
-Tenant
-  ↓
-Product
-  ↓
-Barcode
-  ↓
-Stock
-  ↓
-Fast POS Scan
-  ↓
-Sale
-  ↓
-Payment
-  ↓
-Invoice
-  ↓
-Inventory Movement
+Shared Core
+     +
+Tenant Configuration
+     +
+Industry Capability
 ```
 
-The POS must optimize for fast product lookup and transaction completion.
+Rather than:
+
+```text
+Pharmacy Database
+Supermarket Database
+Clothing Database
+Restaurant Database
+```
+
+This allows Buzzsynx to maintain one shared business engine while adding specialized capabilities when justified.
 
 ---
 
-# 60. Database Security
+# 66. Database Security
 
 Database security requirements include:
 
@@ -2186,31 +2363,31 @@ Audit logging
 Migration control
 ```
 
-Application users should never receive direct database credentials.
+Application users must never receive direct database credentials.
 
-Only backend services should communicate with PostgreSQL.
+Only authorized backend services should communicate with PostgreSQL.
 
 ---
 
-# 61. Application Database Access
-
-Database access should be centralized through the backend architecture.
+# 67. Application Database Access
 
 Preferred flow:
 
 ```text
-Controller
-    ↓
+Route / Controller
+       ↓
 Service
-    ↓
-Repository / Prisma
-    ↓
+       ↓
+Repository / Data Access
+       ↓
+Prisma
+       ↓
 PostgreSQL
 ```
 
 Business rules should not be scattered throughout controllers.
 
-For example:
+Example:
 
 ```text
 SaleController
@@ -2224,13 +2401,13 @@ PaymentService
 Prisma Transaction
 ```
 
-This keeps transactional logic maintainable.
+The exact service boundaries may evolve, but transaction ownership must remain clear.
 
 ---
 
-# 62. Repository Responsibility
+# 68. Repository Responsibility
 
-Repositories/data-access functions should primarily handle:
+Repositories/data-access functions primarily handle:
 
 ```text
 Queries
@@ -2241,7 +2418,7 @@ Transactions
 Database-specific operations
 ```
 
-Services should handle:
+Services handle:
 
 ```text
 Business rules
@@ -2255,7 +2432,7 @@ This separation should remain consistent across modules.
 
 ---
 
-# 63. Database Observability
+# 69. Database Observability
 
 Production database monitoring should track:
 
@@ -2264,83 +2441,85 @@ CPU
 Memory
 Storage
 Connections
-Query latency
-Slow queries
+Query Latency
+Slow Queries
 Locks
 Deadlocks
-Transaction failures
-Backup status
+Transaction Failures
+Backup Status
 ```
 
-AWS CloudWatch and PostgreSQL/RDS monitoring can be used when deployed on AWS.
+When deployed on AWS, RDS and CloudWatch can provide infrastructure-level monitoring.
 
-Application-level database errors should also be captured by Sentry and structured logging.
+Application database failures should also be captured through structured logging and, when enabled, Sentry.
 
 ---
 
-# 64. Performance Strategy
+# 70. Performance Strategy
 
 Performance optimization should follow:
 
 ```text
 Correctness
-   ↓
+    ↓
 Measurement
-   ↓
+    ↓
 Indexing
-   ↓
-Query optimization
-   ↓
+    ↓
+Query Optimization
+    ↓
 Caching
-   ↓
+    ↓
 Aggregation
-   ↓
+    ↓
 Scaling
 ```
 
-Do not introduce complex infrastructure before identifying an actual bottleneck.
+Do not introduce complex database infrastructure before identifying an actual bottleneck.
 
 ---
 
-# 65. Future Database Scaling
+# 71. Future Database Scaling
 
-The initial strategy is:
+Initial architecture:
 
 ```text
-One PostgreSQL database
+One PostgreSQL Database
         +
-Tenant isolation
+Shared Schema
         +
-Proper indexes
+Tenant Isolation
+        +
+Proper Indexes
         +
 Transactions
         +
-Redis caching
+Redis
 ```
 
-As Buzzsynx grows, possible future strategies include:
+Possible future strategies:
 
 ```text
-Read replicas
+Read Replicas
 Partitioning
-Analytics database
-Warehouse
-Tenant-specific databases
-Database sharding
+Analytics Database
+Data Warehouse
+Tenant-Specific Databases
+Database Sharding
 ```
 
 These are future scaling options, not initial requirements.
 
 ---
 
-# 66. Multi-Tenant Evolution
+# 72. Multi-Tenant Evolution
 
 Initial:
 
 ```text
 Shared Database
 Shared Schema
-tenantId isolation
+tenantId Isolation
 ```
 
 Possible future:
@@ -2360,9 +2539,9 @@ The application architecture should avoid tightly coupling business logic to the
 
 ---
 
-# 67. Database Design Rules
+# 73. Database Design Rules
 
-The following rules are mandatory:
+The following rules are mandatory.
 
 ### Rule 1
 
@@ -2378,45 +2557,57 @@ Every business-critical query must be tenant-scoped.
 
 ### Rule 4
 
-Inventory changes must create inventory movements.
+Store-scoped operations must validate store authorization.
 
 ### Rule 5
 
-Completed financial transactions should preserve historical values.
+Inventory changes must create inventory movements.
 
 ### Rule 6
 
-Critical workflows must use database transactions.
+The `Stock` table represents current operational state; the movement ledger preserves historical changes.
 
 ### Rule 7
 
-Money must use exact decimal representation.
+Completed financial transactions must preserve historical values.
 
 ### Rule 8
 
-Foreign keys should be used to maintain relationships.
+Critical workflows must use database transactions.
 
 ### Rule 9
 
-Indexes should follow real query patterns.
+Money must use exact decimal representation.
 
 ### Rule 10
 
-AI must not bypass business transaction services.
+Foreign keys should be used to maintain relationships.
 
 ### Rule 11
 
-Redis must never replace PostgreSQL as the source of truth.
+Indexes should follow real query patterns.
 
 ### Rule 12
 
+AI must not bypass normal business transaction services.
+
+### Rule 13
+
+Redis must never replace PostgreSQL as the source of truth.
+
+### Rule 14
+
 Schema changes must be version-controlled through migrations.
+
+### Rule 15
+
+Future industry capabilities must not unnecessarily complicate the initial supermarket MVP.
 
 ---
 
-# 68. Database Implementation Order
+# 74. Database Implementation Order
 
-The database should be implemented in phases.
+Database implementation should follow the actual MVP roadmap.
 
 ## Phase 1 — Foundation
 
@@ -2424,6 +2615,7 @@ The database should be implemented in phases.
 Tenant
 User
 TenantUser
+Store
 Role
 Permission
 RolePermission
@@ -2443,7 +2635,6 @@ Unit
 ## Phase 3 — Inventory
 
 ```text
-StockLocation
 Stock
 InventoryMovement
 StockAdjustment
@@ -2456,7 +2647,6 @@ StockTransfer
 Supplier
 Purchase
 PurchaseItem
-PurchasePayment
 ```
 
 ## Phase 5 — POS
@@ -2477,46 +2667,47 @@ SaleReturnItem
 Refund
 ```
 
-## Phase 7 — Industry Capabilities
+## Phase 7 — Platform Operations
 
 ```text
-MedicineDetails
-MedicineBatch
-
-Clothing attributes
-
-Restaurant Menu
-Ingredient
-Recipe
-DiningTable
-KitchenOrder
+Notification
+NotificationPreference
+NotificationDelivery
+AuditLog
 ```
 
 ## Phase 8 — Intelligence
 
 ```text
-Analytics summaries
+Analytics Summaries
 AIInsight
 AIRecommendation
 AIForecast
+AIJob
 ```
 
-## Phase 9 — Platform
+Only the models actually required by the implemented workflow should be introduced.
+
+## Phase 9 — Future Industry Capabilities
 
 ```text
-Notification
-AuditLog
-System configuration
-Subscription/billing models
+MedicineDetails
+MedicineBatch
+Prescription
+Clothing-specific attributes
+Menu
+Ingredient
+Recipe
+KitchenOrder
 ```
+
+These are not required for the initial supermarket implementation.
 
 ---
 
-# 69. Prisma Schema Strategy
+# 75. Prisma Schema Strategy
 
-The Prisma schema should remain readable and modular even as it becomes large.
-
-Recommended organization:
+Initially:
 
 ```text
 prisma/
@@ -2525,44 +2716,65 @@ prisma/
 └── migrations/
 ```
 
-Initially, a single `schema.prisma` file is acceptable.
+A single `schema.prisma` file is acceptable during the initial implementation.
 
-As the project grows, schema organization should prioritize maintainability and Prisma compatibility rather than artificially splitting models too early.
+As the project grows, organization should prioritize:
+
+* Readability
+* Prisma compatibility
+* Migration safety
+* Developer maintainability
+
+Do not artificially split the schema before there is a real maintenance problem.
 
 ---
 
-# 70. Database Testing Requirements
+# 76. Database Testing Requirements
 
-Database tests should verify:
-
-### Tenant isolation
+## Tenant Isolation
 
 ```text
 Tenant A cannot access Tenant B data.
 ```
 
-### Inventory
+## Store Isolation
+
+```text
+Store A users cannot access unauthorized Store B data.
+```
+
+## Inventory
 
 ```text
 Purchase increases stock.
 Sale decreases stock.
-Return increases stock.
+Return increases stock where appropriate.
 Damage decreases stock.
+Transfer moves stock between stores.
+Adjustment reconciles stock.
 ```
 
-### POS transaction
+## POS Atomicity
 
 ```text
-Sale + payment + inventory movement + invoice
+Sale
++
+Payment State
++
+Inventory Movement
++
+Stock Update
++
+Invoice Record
 ```
 
-must behave atomically.
+must remain transactionally consistent.
 
-### Concurrency
+## Concurrency
 
 Concurrent sales must not create invalid stock states.
 
-### Constraints
+## Constraints
 
 Duplicate:
 
@@ -2573,9 +2785,9 @@ Invoice Number
 Sale Number
 ```
 
-should be handled correctly according to tenant rules.
+must be handled according to their defined tenant/store scope.
 
-### Financial accuracy
+## Financial Accuracy
 
 ```text
 Subtotal
@@ -2586,90 +2798,344 @@ Payment
 Refund
 ```
 
-must remain consistent.
+must remain mathematically consistent.
 
 ---
 
-# 71. Database Definition of Done
+# 77. Database Definition of Done
 
-The database layer is considered ready for implementation when:
+The database foundation is considered ready for implementation when:
 
 * [ ] Core entities are defined.
 * [ ] Tenant relationships are defined.
+* [ ] Store/branch relationships are defined.
+* [ ] Membership and RBAC models are defined.
 * [ ] Foreign-key relationships are defined.
 * [ ] Unique constraints are defined.
 * [ ] Required indexes are identified.
 * [ ] Inventory movement model is finalized.
+* [ ] Stock model is finalized.
 * [ ] POS transaction model is finalized.
-* [ ] Payment model is finalized.
+* [ ] Payment lifecycle is finalized.
 * [ ] Invoice model is finalized.
 * [ ] Return/refund model is finalized.
-* [ ] Industry capability models are defined.
+* [ ] Supermarket MVP capability requirements are defined.
+* [ ] Future industry models are clearly separated.
 * [ ] Audit model is defined.
 * [ ] Monetary fields use exact decimal types.
 * [ ] Critical workflows have transaction boundaries.
+* [ ] Concurrency strategy is defined.
 * [ ] Prisma schema is validated.
 * [ ] Prisma migrations are tested.
 * [ ] Seed data is available.
 * [ ] Tenant isolation tests are implemented.
+* [ ] Store-scope authorization tests are implemented.
 * [ ] Database backup strategy is defined for staging/production.
 
 ---
 
-# 72. Final Database Architecture
+# 78. Recommended Core Relationship Map
 
-The final conceptual architecture is:
+```text
+Platform
+   │
+   └── Tenant / Business
+          │
+          ├── Memberships
+          │     └── Users
+          │
+          ├── Roles / Permissions
+          │
+          ├── Stores / Branches
+          │     ├── Stock
+          │     ├── Sales
+          │     ├── Purchases
+          │     └── Inventory Movements
+          │
+          ├── Products
+          │     ├── Categories
+          │     ├── Brands
+          │     └── Variants
+          │
+          ├── Suppliers
+          │     └── Purchases
+          │
+          ├── Customers
+          │
+          ├── Invoices
+          │
+          ├── Analytics
+          │
+          ├── AI
+          │
+          ├── Notifications
+          │
+          └── Audit Logs
+```
+
+---
+
+# 79. Supermarket MVP Data Flow
+
+The canonical Buzzsynx database workflow is:
+
+```text
+Tenant
+   ↓
+Store
+   ↓
+Products
+   ↓
+Suppliers
+   ↓
+Purchase / Receiving
+   ↓
+Inventory Movement
+   ↓
+Stock
+   ↓
+POS Search / Barcode
+   ↓
+Cart
+   ↓
+Stock Validation
+   ↓
+Price / Tax / Discount
+   ↓
+Payment
+   ↓
+Sale
+   ↓
+Inventory Movement
+   ↓
+Stock Update
+   ↓
+Invoice Record
+   ↓
+Analytics
+   ↓
+AI Insights
+   ↓
+Notifications / Automation
+```
+
+The critical transaction is authoritative.
+
+Analytics, AI, notifications, and document generation operate around the transactional core rather than replacing it.
+
+---
+
+# 80. Future Pharmacy Data Flow
+
+Future capability example:
+
+```text
+Tenant
+   ↓
+Medicine Product
+   ↓
+Medicine Details
+   ↓
+Medicine Batch
+   ↓
+Purchase
+   ↓
+Inventory
+   ↓
+Batch-aware Stock
+   ↓
+POS Sale
+   ↓
+Payment
+   ↓
+Invoice
+```
+
+This is a future capability, not part of the initial supermarket database implementation.
+
+---
+
+# 81. Future Clothing Data Flow
+
+Future capability example:
+
+```text
+Tenant
+   ↓
+Product
+   ↓
+Variants
+   ├── M / Black
+   ├── M / White
+   ├── L / Black
+   └── L / White
+   ↓
+Store Stock
+   ↓
+POS
+   ↓
+Sale
+   ↓
+Payment
+   ↓
+Invoice
+```
+
+Each sellable variant may maintain independent SKU, barcode, price, and stock.
+
+---
+
+# 82. Future Restaurant Data Flow
+
+Future capability example:
+
+```text
+Tenant
+   ↓
+Menu Item
+   ↓
+Recipe
+   ↓
+Ingredients
+   ↓
+Inventory
+   ↓
+Restaurant Order
+   ↓
+Kitchen Workflow
+   ↓
+Payment
+   ↓
+Sale
+   ↓
+Inventory Consumption
+```
+
+This capability will integrate with the shared business engine when implemented.
+
+---
+
+# 83. Database Security Boundary
+
+The database architecture follows:
+
+```text
+Client
+  ↓
+Frontend
+  ↓
+Backend Authentication
+  ↓
+Tenant Resolution
+  ↓
+Membership
+  ↓
+Role / Permission
+  ↓
+Store Scope
+  ↓
+Business Service
+  ↓
+Prisma
+  ↓
+PostgreSQL
+```
+
+The client must never directly access PostgreSQL.
+
+The backend is responsible for enforcing:
+
+* Tenant isolation
+* Store isolation
+* Authorization
+* Validation
+* Business rules
+* Transaction boundaries
+
+---
+
+# 84. Final Database Architecture
 
 ```text
                          BUZZSYNX
                             │
-                         TENANT
+                     TENANT / BUSINESS
                             │
           ┌─────────────────┼─────────────────┐
           │                 │                 │
-        USERS            PRODUCTS          SETTINGS
+      MEMBERSHIPS        PRODUCTS          SETTINGS
           │                 │
-        RBAC          ┌─────┼─────┐
+       RBAC          ┌──────┼──────┐
+                     │      │      │
+                 CATEGORY  BRAND  VARIANTS
+                            │
+                         STORES
+                            │
+                    ┌───────┼────────┐
+                    │       │        │
+                  STOCK    POS    PURCHASING
+                    │       │        │
+               MOVEMENTS  SALES    PURCHASES
+                            │
+                      ┌─────┼─────┐
                       │     │     │
-                  CATEGORY BRAND VARIANTS
+                    ITEMS PAYMENT CUSTOMER
                             │
-                         INVENTORY
+                         INVOICE
                             │
-                  ┌─────────┼─────────┐
-                  │         │         │
-                STOCK    MOVEMENTS  LOCATIONS
-                  │
-          ┌───────┴────────┐
-          │                │
-      PURCHASING          POS
-          │                │
-       SUPPLIER          SALES
-          │                │
-      PURCHASE        ┌────┼────┐
-          │          ITEMS PAYMENT
-          │                │
-          └───────┬────────┘
-                  │
-               INVOICE
-                  │
-              ANALYTICS
-                  │
-              AI ENGINE
-                  │
-        ┌─────────┼─────────┐
-        │         │         │
-      INSIGHTS  FORECASTS  ALERTS
+                       ANALYTICS
+                            │
+                         AI
+                            │
+                    ┌───────┼───────┐
+                    │       │       │
+                 INSIGHTS FORECASTS ALERTS
 
-Industry capabilities connect to the shared core:
-
-Pharmacy ────────┐
-Supermarket ─────┤
-Clothing ────────┤──→ Shared Business Engine
-Restaurant ──────┘
+Future Industry Capabilities
+             │
+      ┌──────┼──────┬──────────┐
+      │      │      │          │
+  Pharmacy Clothing Restaurant Clinic
+      │      │      │          │
+      └──────┴──────┴──────────┘
+                 │
+        Shared Business Engine
 ```
 
-The fundamental database principle is:
-
-> **One shared business platform, strict tenant isolation, transactional integrity, ledger-based inventory, configurable industry capabilities, and historical data that can power analytics and AI.**
-
 ---
+
+# 85. Fundamental Database Principle
+
+Buzzsynx follows this principle:
+
+> **One shared business platform, strict tenant and store isolation, transactional integrity, ledger-based inventory, configurable industry capabilities, and historical business data that can power analytics and AI.**
+
+The database has three fundamental layers:
+
+```text
+AUTHORITATIVE DATA
+        ↓
+PostgreSQL
+        ↓
+Business Transactions
+
+DERIVED DATA
+        ↓
+Analytics / Aggregations
+        ↓
+Dashboards / Reports
+
+INTELLIGENCE
+        ↓
+AI
+        ↓
+Insights / Recommendations
+```
+
+The database remains the foundation.
+
+The application enforces what is allowed.
+
+AI helps understand what happened and what may happen next.
+
+**Buzzsynx — First Brick, Not the Whole Building.**
