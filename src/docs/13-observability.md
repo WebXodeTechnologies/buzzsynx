@@ -2,177 +2,283 @@
 
 **Document:** Observability Architecture & Standards
 **Project:** Buzzsynx
-**Version:** 1.0
-**Status:** Architecture & Development
+**Version:** 0.2
+**Status:** Architecture Specification / Foundation
 **Primary Concerns:** Logs, Errors, Metrics, Health, Tracing, Auditability, Alerts
 **Architecture:** Multi-Tenant Modular Monolith
+**Initial Industry Scope:** Supermarket / Grocery
+**Future Scope:** Additional industry capabilities through the shared platform architecture
 
 ---
 
 # 1. Purpose
 
-Observability defines how Buzzsynx understands its own behavior.
+Observability defines how Buzzsynx understands, measures, diagnoses, and operates its own behavior.
 
-A production system should not only execute business operations. It should also provide enough information to answer:
+Buzzsynx must be able to answer operational questions such as:
 
 * Is the application healthy?
 * Is the API responding correctly?
 * Which requests are failing?
-* Which tenant is affected?
+* Which tenant and store are affected?
 * Which business operation failed?
 * Is PostgreSQL healthy?
 * Is Redis healthy?
 * Are background jobs processing?
-* Is the AI provider failing?
-* Are payments failing?
+* Are workers healthy?
+* Is an AI provider failing?
+* Are payment operations failing?
 * Are requests becoming slower?
-* Did a deployment introduce an issue?
-* What happened before a failure occurred?
+* Did a deployment introduce the problem?
+* What happened before and after the failure?
+* Was an important business action performed?
+* Did the system recover successfully?
 
-The goal is to make Buzzsynx:
+The objective is to make Buzzsynx:
 
 > **Observable, diagnosable, measurable, and operationally trustworthy.**
 
+Observability is an architectural capability, not merely a collection of monitoring tools.
+
 ---
 
-# 2. Observability Principles
+# 2. Scope
+
+Buzzsynx is currently designed as a:
+
+> **Multi-Tenant Modular Monolith**
+
+The initial complete business implementation is:
+
+> **Supermarket / Grocery**
+
+Future industries such as pharmacy, clothing, restaurant, electronics, and other business types will reuse the same observability architecture through industry capabilities.
+
+Observability therefore applies to:
+
+* Platform
+* Tenant
+* Store / Branch
+* User
+* API
+* Database
+* Cache
+* Queues
+* Workers
+* POS
+* Inventory
+* Purchasing
+* Payments
+* Analytics
+* AI
+* Notifications
+* Reports
+* File storage
+* Infrastructure
+
+Not every component requires the same level of monitoring.
+
+Critical business paths receive stronger observability than non-critical functionality.
+
+---
+
+# 3. Observability Principles
 
 Buzzsynx follows five primary observability principles.
 
-### 1. Logs explain events
+## 3.1 Logs Explain Events
 
 Logs answer:
 
 > **What happened?**
 
-### 2. Metrics explain behavior
+Example:
+
+```text
+sale.completed
+inventory.movement.created
+payment.failed
+worker.job.failed
+```
+
+---
+
+## 3.2 Metrics Explain Behavior
 
 Metrics answer:
 
-> **How often and how much is happening?**
+> **How often, how much, and how quickly is something happening?**
 
-### 3. Traces explain request flow
+Examples:
+
+```text
+API request rate
+API error rate
+P95 latency
+Queue backlog
+Database connection usage
+AI request count
+```
+
+---
+
+## 3.3 Traces Explain Flow
 
 Traces answer:
 
-> **Where did the request spend time or fail?**
+> **Where did an operation spend time or fail?**
 
-### 4. Health checks explain availability
+Tracing is particularly useful for complex workflows involving multiple application components or external providers.
+
+---
+
+## 3.4 Health Checks Explain Availability
 
 Health checks answer:
 
-> **Is the system currently capable of operating?**
+> **Can this application instance currently operate?**
 
-### 5. Audit logs explain business actions
-
-Audit logs answer:
-
-> **Who performed which important business action?**
-
-These concerns should remain related but should not be treated as the same system.
+Liveness and readiness must remain distinct.
 
 ---
 
-# 3. Observability Architecture
+## 3.5 Audit Events Explain Business Actions
 
-The high-level architecture is:
+Audit events answer:
+
+> **Who performed which important business action, when, and on which resource?**
+
+Audit events are not the same as technical logs.
+
+---
+
+# 4. Observability Architecture
+
+High-level architecture:
 
 ```text
-                    Buzzsynx
-                       │
-          ┌────────────┼────────────┐
-          │            │            │
-        Logs        Metrics       Traces
-          │            │            │
-          └────────────┼────────────┘
-                       │
-                Observability
-                   Platform
-                       │
-             ┌─────────┴─────────┐
-             │                   │
-          Dashboard            Alerts
-             │                   │
-             └─────────┬─────────┘
-                       │
-                  Operations
+                         Buzzsynx
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+        Logs             Metrics           Traces
+          │                 │                 │
+          └─────────────────┼─────────────────┘
+                            │
+                    Observability Layer
+                            │
+               ┌────────────┴────────────┐
+               │                         │
+           Dashboards                  Alerts
+               │                         │
+               └────────────┬────────────┘
+                            │
+                       Operations
 ```
 
-Business audit events follow a separate path:
+Business audit events follow a separate logical path:
 
 ```text
 Business Operation
-       ↓
+        ↓
 Audit Event
-       ↓
+        ↓
 Audit Storage
-       ↓
-Business Investigation
+        ↓
+Authorized Investigation
 ```
+
+The two systems may share infrastructure, but they have different purposes and retention/access requirements.
 
 ---
 
-# 4. Observability Components
+# 5. Observability Layers
 
-Buzzsynx should eventually observe the following layers:
+Buzzsynx should progressively observe the following layers:
 
 ```text
 Frontend
-Backend API
-Database
+   ↓
+Nginx / Edge
+   ↓
+Express API
+   ↓
+Application Services
+   ↓
+PostgreSQL
+   ↓
 Redis
+   ↓
 BullMQ
+   ↓
 Workers
-AI Providers
-Payment Providers
-File Storage
-Nginx
-Docker
-Host / Cloud Infrastructure
+   ↓
+External Providers
+   ├── AI
+   ├── Payment
+   ├── Email / WhatsApp
+   └── File Storage
+
+Infrastructure
+   ├── Docker
+   ├── Host
+   └── AWS
 ```
 
-Each layer should expose appropriate operational information.
+Observability should be introduced according to operational importance rather than attempting to monitor every internal detail from day one.
 
 ---
 
-# 5. Application Logging
+# 6. Application Logging
 
-Buzzsynx should use **structured logging** instead of relying primarily on unstructured console messages.
+Buzzsynx should use structured logging rather than relying primarily on unstructured console output.
+
+The current backend stack uses structured logging through **Pino / pino-http**.
 
 Example:
 
 ```json
 {
   "level": "info",
-  "event": "sale.created",
+  "event": "sale.completed",
   "requestId": "req_123",
   "tenantId": "tenant_456",
+  "storeId": "store_001",
   "userId": "user_789",
   "saleId": "sale_001",
   "durationMs": 142,
+  "environment": "production",
   "timestamp": "2026-09-25T10:30:00Z"
 }
 ```
 
-Structured logs make searching, filtering, aggregation, and alerting significantly easier.
+Structured logs allow:
+
+* Searching
+* Filtering
+* Correlation
+* Aggregation
+* Alerting
+* Incident investigation
 
 ---
 
-# 6. Log Levels
-
-Recommended levels:
+# 7. Log Levels
 
 ## DEBUG
 
-Detailed development information.
+Detailed diagnostic information.
 
 Examples:
 
-* Internal state
 * Development diagnostics
-* Cache operations
+* Internal execution details
+* Cache diagnostics
+* Detailed worker information
 
-Should generally be reduced or disabled in production.
+DEBUG logging should be carefully controlled in production.
+
+---
 
 ## INFO
 
@@ -180,159 +286,173 @@ Normal operational events.
 
 Examples:
 
-* Server started
-* User authenticated
+* Application started
+* Database connected
+* Worker started
 * Sale completed
-* Background job completed
-* Application connected to database
+* Job completed
+* Configuration loaded
+
+---
 
 ## WARN
 
-Unexpected but recoverable situations.
+Unexpected but recoverable conditions.
 
 Examples:
 
-* Cache miss
-* AI provider temporarily unavailable
-* Retry scheduled
 * Slow request
-* Low queue capacity
+* Cache fallback
+* Retry scheduled
+* External provider temporarily unavailable
+* Queue backlog increasing
+* Non-critical dependency degraded
+
+---
 
 ## ERROR
 
-Operation failed and requires investigation.
+An operation failed and requires investigation.
 
 Examples:
 
 * Database operation failed
-* Payment processing failed
-* Worker failed
+* Payment operation failed
+* Worker job failed
 * External API failure
-
-## FATAL
-
-Application or infrastructure condition that prevents normal operation.
-
-Examples:
-
-* Application cannot initialize
-* Required configuration missing
-* Database unavailable during startup
+* AI request failure
 
 ---
 
-# 7. Log Context
+## FATAL
 
-Important application logs should include appropriate context.
+The process cannot safely continue.
 
-Recommended fields:
+Examples:
+
+* Required configuration missing
+* Application initialization failure
+* Required database connection unavailable during startup
+
+The application should not generate excessive FATAL logs for ordinary request failures.
+
+---
+
+# 8. Log Context
+
+Important logs should include relevant context.
+
+Typical fields:
 
 ```text
 timestamp
 level
-service
 environment
+applicationVersion
 requestId
-userId
+correlationId
 tenantId
-role
+storeId
+userId
 module
 operation
+resourceType
 resourceId
 durationMs
 errorCode
 message
 ```
 
-Not every log needs every field.
+Not every log requires every field.
 
-Only relevant context should be included.
+Only relevant and safe information should be included.
 
 ---
 
-# 8. Request ID
+# 9. Request ID
 
-Every API request should have a unique request identifier.
+Every API request should receive a unique request ID.
 
 Example:
 
 ```text
-Request
-   ↓
+HTTP Request
+     ↓
 requestId = req_abc123
-   ↓
+     ↓
+Middleware
+     ↓
 Controller
-   ↓
+     ↓
 Service
-   ↓
+     ↓
 Repository
-   ↓
-Database
-```
-
-If the request fails, the same ID should help correlate related logs.
-
-Example:
-
-```text
-req_abc123
-
-API Request
-   ↓
-Inventory Service
-   ↓
+     ↓
 PostgreSQL
-   ↓
-Stock Movement
-   ↓
+     ↓
 Response
 ```
 
-This makes debugging significantly easier.
+The request ID should be returned to the client where appropriate, allowing support and engineering teams to correlate a reported failure with server-side logs.
+
+Example:
+
+```text
+X-Request-Id: req_abc123
+```
+
+The exact header convention should remain consistent across the platform.
 
 ---
 
-# 9. Correlation IDs
+# 10. Correlation Across Async Operations
 
-For asynchronous operations, request IDs alone are not sufficient.
+Request IDs alone are insufficient when work continues asynchronously.
 
 Example:
 
 ```text
 Sale Request
-   ↓
+     ↓
 requestId
-   ↓
-SALE_CREATED
-   ↓
+     ↓
+Database Transaction
+     ↓
+Outbox Event / Async Event
+     ↓
 jobId
-   ↓
+     ↓
 Worker
+     ↓
+Notification / Analytics / AI
 ```
 
-The job should retain appropriate correlation information.
-
-Example:
+Relevant identifiers may include:
 
 ```text
 requestId
-tenantId
-saleId
+correlationId
 jobId
+tenantId
+storeId
+saleId
 ```
 
-This allows an engineer to follow an operation across synchronous and asynchronous systems.
+A correlation ID can connect the entire business operation while a request ID identifies an individual HTTP request.
 
 ---
 
-# 10. Tenant-Aware Observability
+# 11. Tenant and Store-Aware Observability
 
-Because Buzzsynx is multi-tenant, observability must preserve tenant context where appropriate.
+Buzzsynx is multi-tenant and supports multiple stores / branches.
+
+Observability must therefore preserve tenant and store context where appropriate.
 
 Example:
 
 ```text
 tenantId
+storeId
 userId
 requestId
 operation
@@ -341,76 +461,118 @@ resourceId
 
 This allows operational questions such as:
 
-> Which tenant experienced this failure?
+> Which tenant experienced the problem?
 
-or:
+> Which store was affected?
 
-> Are errors isolated to one tenant or affecting the entire platform?
+> Is the problem isolated to one store or affecting the entire platform?
 
-However, tenant information must not become a mechanism for exposing sensitive tenant data to unauthorized users.
+Tenant and store context must never be used to bypass authorization.
 
-Operational dashboards must follow appropriate access controls.
+Operational dashboards must enforce appropriate access controls.
 
 ---
 
-# 11. Sensitive Data Protection
+# 12. Platform vs Tenant Observability
 
-Logs must not contain unnecessary sensitive information.
+There are two distinct observability perspectives.
+
+## Platform Observability
+
+Authorized platform operators may monitor:
+
+* Overall API health
+* Infrastructure health
+* Database health
+* Redis health
+* Queue health
+* Worker health
+* Aggregate error rates
+* Aggregate platform usage
+* Security events
+
+---
+
+## Tenant Observability
+
+Authorized tenant users may view appropriate business information for their own tenant and permitted stores.
+
+Examples:
+
+* Sales metrics
+* Inventory events
+* Payment failures
+* Reports
+* AI usage
+* Business alerts
+
+Tenant users must not access another tenant's operational or business data.
+
+---
+
+# 13. Sensitive Data Protection
+
+Logs are operational data and must be treated as potentially sensitive.
 
 Never log:
 
 * Passwords
 * Password hashes
-* Authentication secrets
-* API keys
 * Access tokens
 * Refresh tokens
+* API secrets
+* Database credentials
 * Payment credentials
 * Full card information
-* Sensitive personal information unnecessarily
-* Database credentials
+* Secret keys
+* Unnecessary personal information
 
-Instead of:
+Avoid:
 
 ```text
 password=MyPassword123
 ```
 
-the log should contain:
+Prefer:
 
 ```text
 authentication.failed
 ```
 
-with appropriate non-sensitive context.
+with safe contextual information.
+
+Pino redaction should be configured for known sensitive fields.
 
 ---
 
-# 12. Error Tracking
+# 14. Error Tracking
 
-Application errors should be captured centrally.
+Application errors should be centrally captured.
 
-A tool such as **Sentry** can be used for application-level error monitoring.
+A tool such as **Sentry** may be introduced for application error tracking.
 
-The error system should capture:
+The architecture should support capturing:
 
+* Error type
 * Error message
 * Stack trace
 * Environment
-* Release/version
-* Request context
-* Relevant tenant context
+* Application version
+* Release
+* Request ID
+* Correlation ID
+* Relevant tenant/store context
 * User context where appropriate
-* Browser information for frontend errors
-* Server context for backend errors
+* Frontend browser context
+* Backend context
+
+Sentry is a planned observability component, not assumed to be fully implemented unless explicitly configured.
 
 ---
 
-# 13. Error Classification
+# 15. Error Classification
 
-Errors should be categorized.
-
-Example:
+Errors should be classified consistently.
 
 ```text
 Validation Error
@@ -428,35 +590,37 @@ Infrastructure Error
 Unknown Error
 ```
 
-This makes operational analysis easier.
+Stable error codes should be preferred over relying only on human-readable messages.
 
 ---
 
-# 14. Business Errors vs System Errors
+# 16. Business Errors vs System Errors
 
-These should not be treated identically.
+These must be distinguished.
 
-### Business Error
+## Business Error
 
-Example:
-
-```text
-Insufficient stock
-```
-
-The system is working correctly but the requested operation is not allowed.
-
-### System Error
+The system is functioning correctly but the requested operation is not allowed.
 
 Example:
 
 ```text
-PostgreSQL connection failed
+INSUFFICIENT_STOCK
 ```
 
-The system itself is experiencing a failure.
+---
 
-This distinction should exist in:
+## System Error
+
+The system itself cannot complete the operation normally.
+
+Example:
+
+```text
+DATABASE_UNAVAILABLE
+```
+
+This distinction should be reflected in:
 
 * API responses
 * Logs
@@ -466,73 +630,77 @@ This distinction should exist in:
 
 ---
 
-# 15. API Metrics
+# 17. API Metrics
 
-The API should expose metrics such as:
+The API should eventually expose metrics such as:
 
 * Request count
 * Error count
 * Error rate
 * Response latency
-* Requests by endpoint
+* Requests by route
 * Requests by HTTP status
-* Requests by method
 * Authentication failures
 * Authorization failures
 * Rate-limit events
+* Timeout count
 
-Important latency measurements include:
+Latency should be monitored using percentiles:
 
 ```text
-Average
 P50
 P95
 P99
 ```
 
-Percentiles are more useful than averages for identifying slow requests experienced by a subset of users.
+Average latency alone can hide poor experiences for a subset of requests.
+
+Metrics should avoid unbounded labels such as raw user IDs, request IDs, or arbitrary resource IDs.
 
 ---
 
-# 16. Business Metrics
+# 18. Business Metrics
 
-Technical metrics alone are insufficient for Buzzsynx.
+Technical metrics are not enough for Buzzsynx.
 
 Important business metrics include:
 
-* Sales completed
-* Sales failed
+* Completed sales
+* Failed sales
 * Payment failures
 * Inventory adjustments
-* Purchase transactions
+* Purchase/receiving transactions
+* Returns
 * Product creation
 * Customer creation
-* AI requests
-* AI failures
-* Background jobs completed
-* Background jobs failed
-* Notifications sent
+* AI operations
+* Notification operations
 * Reports generated
+* Background jobs completed/failed
 
 Example:
 
 ```text
 Sales
-  ↓
-Completed: 1,245
-Failed: 8
-Failure Rate: monitored
+ ├── Completed
+ └── Failed
 ```
 
-Business metrics should be tenant-aware where appropriate.
+Business metrics should be tenant/store scoped where meaningful.
+
+However, tenant IDs should be handled carefully in metric systems because high-cardinality metric labels can become expensive and difficult to operate.
+
+For detailed tenant-level analysis, logs or business analytics storage may be more appropriate.
 
 ---
 
-# 17. Database Observability
+# 19. PostgreSQL Observability
 
-PostgreSQL should be monitored for:
+PostgreSQL is the authoritative source of business truth.
 
-* Connection availability
+It should be monitored for:
+
+* Availability
 * Connection pool usage
 * Query latency
 * Slow queries
@@ -542,90 +710,116 @@ PostgreSQL should be monitored for:
 * Database size
 * Table growth
 * Index usage
-* Failed migrations
 * Connection exhaustion
+* Migration failures
+* Replication status if introduced later
 
 Particular attention should be given to:
 
 ```text
 Sales
 Inventory
+Purchasing
 Payments
-Orders
-Analytics
+Returns
+Analytics queries
 ```
-
-because these are business-critical areas.
 
 ---
 
-# 18. Database Query Performance
+# 20. Database Performance Observability
 
-Slow database queries should be detectable.
-
-Potential indicators:
+Potential indicators include:
 
 ```text
-query duration
-rows scanned
-rows returned
-index usage
-connection wait time
-transaction duration
+Query duration
+Transaction duration
+Rows returned
+Rows scanned
+Connection wait time
+Lock wait time
+Deadlocks
 ```
 
-Frequently executed queries should be reviewed periodically.
-
-Potential problem:
+Slow-query analysis should be used to identify problems such as:
 
 ```text
-GET /products
-      ↓
-Full table scan
-      ↓
-100,000 products
-      ↓
-Slow response
+Product Search
+     ↓
+Poor Query Plan
+     ↓
+Large Scan
+     ↓
+Database Load ↑
+     ↓
+API Latency ↑
 ```
 
-The observability system should help identify this before it becomes a serious production problem.
+The objective is not merely to collect query data but to identify performance regressions before they materially affect users.
 
 ---
 
-# 19. Redis Observability
+# 21. Redis Observability
 
-Redis should be monitored for:
+Redis is an operational support component, not the source of business truth.
 
-* Connection status
+Monitor:
+
+* Connection health
 * Memory usage
-* Cache hit rate
-* Cache miss rate
+* Cache hit/miss behavior
 * Evictions
 * Command latency
 * Connection failures
 * Key growth
 * Rate-limit behavior
 * Lock behavior where applicable
+* Queue backend health when BullMQ shares the Redis infrastructure
 
-Example:
+Example relationship:
 
 ```text
 Cache Hit Rate ↓
        ↓
-More PostgreSQL Queries
+More PostgreSQL Reads
        ↓
 Database Load ↑
        ↓
 API Latency ↑
 ```
 
-Observability should allow this relationship to be diagnosed.
+Redis monitoring must distinguish ordinary cache activity from BullMQ queue infrastructure.
 
 ---
 
-# 20. BullMQ Observability
+# 22. Redis Failure Behavior
 
-Queues should expose:
+Redis failure must not corrupt core business state.
+
+Expected behavior:
+
+```text
+Redis unavailable
+      ↓
+Cache reads may fall back to PostgreSQL where safe
+      ↓
+Critical transactions continue through PostgreSQL
+```
+
+However:
+
+* BullMQ processing cannot continue normally while its Redis backend is unavailable.
+* Queue reliability for important events should be supported by database-backed mechanisms such as a transactional outbox where required.
+* Rate limiting behavior should be explicitly defined per endpoint.
+* Critical security controls must not silently become ineffective because Redis is unavailable.
+
+Redis should therefore be treated as an acceleration/coordination layer, not the authoritative business database.
+
+---
+
+# 23. BullMQ Observability
+
+BullMQ queues should expose operational information such as:
 
 * Waiting jobs
 * Active jobs
@@ -635,6 +829,7 @@ Queues should expose:
 * Retry counts
 * Processing duration
 * Queue backlog
+* Oldest waiting job
 * Worker availability
 
 Example:
@@ -642,114 +837,190 @@ Example:
 ```text
 AI Queue
 ───────────────
-Waiting: 25
-Active: 4
-Completed: 12,450
-Failed: 12
-Delayed: 3
+Waiting:    25
+Active:      4
+Completed: 12450
+Failed:     12
+Delayed:     3
 ```
 
-A continuously increasing queue backlog may indicate:
+A continuously increasing backlog may indicate:
 
-* Worker capacity is insufficient.
-* External provider is slow.
-* Jobs are failing repeatedly.
-* Concurrency is too low.
-* A downstream dependency is unavailable.
+* Insufficient worker capacity
+* Downstream provider latency
+* Repeated job failures
+* Low concurrency
+* Dependency failure
 
 ---
 
-# 21. Worker Observability
+# 24. Worker Observability
 
-Workers should expose:
-
-* Worker startup
-* Worker shutdown
-* Job started
-* Job completed
-* Job failed
-* Retry
-* Processing duration
-* Queue name
-* Job ID
-* Tenant ID where appropriate
-
-Example:
+Workers should record:
 
 ```text
+worker.started
+worker.stopped
 job.started
 job.completed
 job.failed
 job.retry
 ```
 
+Relevant fields:
+
+```text
+queue
+jobId
+jobType
+jobVersion
+tenantId
+storeId
+correlationId
+durationMs
+attempt
+errorCode
+```
+
 Worker failures must not silently disappear.
 
+Workers should also expose operational health independently from the API process.
+
 ---
 
-# 22. AI Observability
+# 25. Queue Job Context
 
-AI operations require dedicated monitoring.
+Background jobs should carry only the minimum required information.
 
-Track:
-
-* AI requests
-* AI success rate
-* AI failure rate
-* Provider latency
-* Token usage where available
-* Estimated cost where available
-* Model/provider
-* Prompt version
-* Output validation failures
-* Rate limits
-* Timeout events
-* Retry events
-
-Example:
+Typical payload:
 
 ```text
-AI Request
-    ↓
-Provider
-    ↓
-Response
-    ↓
-Validation
-    ↓
-Business Insight
+jobType
+jobVersion
+tenantId
+storeId
+referenceId
+idempotencyKey
+correlationId
 ```
 
-Failures at each stage should be distinguishable.
+Do not place:
+
+* Passwords
+* API secrets
+* Payment credentials
+* Large unnecessary objects
+* Unnecessary personal information
+
+Workers must validate job payloads before processing.
 
 ---
 
-# 23. AI Cost Monitoring
+# 26. Async Business Event Observability
 
-Because AI usage may generate variable costs, Buzzsynx should track AI consumption.
-
-Potential metrics:
+For important business events, the preferred reliability model is:
 
 ```text
-Requests / tenant
-Tokens / tenant
-Estimated cost / tenant
-Requests / feature
-Cost / feature
-Failures / provider
+Business Transaction
+       ↓
+PostgreSQL Transaction
+       ↓
+Business Data + Outbox Event
+       ↓
+COMMIT
+       ↓
+Outbox Publisher
+       ↓
+BullMQ
+       ↓
+Worker
 ```
 
-This can eventually support:
+This prevents a successful business transaction from losing its associated asynchronous event merely because queue submission temporarily failed.
 
-* Usage limits
-* Subscription plans
-* AI quotas
-* Cost alerts
-* Tenant-level billing
+For non-critical best-effort work, direct post-commit enqueueing may be sufficient initially.
+
+The transactional outbox should be introduced where reliability requirements justify it.
 
 ---
 
-# 24. Payment Observability
+# 27. POS Observability
+
+POS is a critical business workflow.
+
+Important operational events include:
+
+```text
+Product Search
+Product Scanned
+Stock Validation
+Cart Updated
+Sale Started
+Payment Started
+Payment Recorded
+Sale Completed
+Sale Failed
+Inventory Movement Created
+Invoice Created
+```
+
+A POS transaction should be traceable without logging sensitive payment information.
+
+The observability model should distinguish:
+
+```text
+Sale Status
+Payment Status
+Inventory Status
+Invoice Status
+```
+
+rather than treating them as one generic status.
+
+---
+
+# 28. POS Transaction Observability
+
+The core POS transaction follows the business architecture:
+
+```text
+POS Request
+     ↓
+Authentication / Authorization
+     ↓
+Product / Price / Tax Validation
+     ↓
+Stock Validation
+     ↓
+PostgreSQL Transaction
+     ├── Sale
+     ├── Sale Items
+     ├── Payment Allocation
+     ├── Inventory Movement
+     └── Invoice Record
+     ↓
+COMMIT
+     ↓
+Async Events
+     ├── Analytics
+     ├── Cache Invalidation
+     ├── Notifications
+     ├── PDF
+     └── AI
+```
+
+The critical transaction should not depend on AI, email, analytics processing, or PDF generation.
+
+Observability must make it clear whether a failure occurred:
+
+* Before transaction
+* During transaction
+* After commit
+* In asynchronous processing
+
+---
+
+# 29. Payment Observability
 
 Payment operations are business-critical.
 
@@ -758,70 +1029,232 @@ Monitor:
 * Payment attempts
 * Successful payments
 * Failed payments
-* Payment verification failures
+* Payment status transitions
+* Provider response failures
 * Webhook failures
-* Refunds
-* Duplicate requests
+* Webhook replay/idempotency events
+* Refund operations
 * Provider latency
+* Timeout events
 
-Payment logs must never expose sensitive payment credentials.
+External payment providers must not be called inside the core PostgreSQL transaction.
+
+Payment gateway state should be reconciled through verified provider webhooks and idempotent processing.
+
+Never log raw payment credentials or sensitive card information.
 
 ---
 
-# 25. POS Observability
+# 30. Inventory Observability
 
-POS should have dedicated operational visibility.
+Inventory uses an authoritative movement ledger.
 
-Important events:
+Observable movement types include:
 
 ```text
-Cart Created
-Product Added
-Stock Validation
-Sale Started
-Payment Started
-Payment Completed
-Sale Completed
-Sale Failed
-Inventory Updated
-Invoice Generated
+PURCHASE
+SALE
+RETURN
+TRANSFER
+DAMAGE
+EXPIRY
+ADJUSTMENT
 ```
-
-A failed POS transaction should be traceable from start to finish.
-
----
-
-# 26. Inventory Observability
-
-Inventory events should be measurable.
 
 Track:
 
+* Inventory movements
 * Stock adjustments
-* Purchases
+* Purchases/receiving
 * Sales
 * Returns
 * Transfers
 * Damage
 * Expiry
 * Negative-stock attempts
-* Inventory transaction failures
+* Transaction failures
+* Stock reconciliation issues
 
-Unexpected inventory changes should be detectable and auditable.
+Important inventory operations should also produce audit events.
 
 ---
 
-# 27. Health Checks
+# 31. Inventory Integrity Monitoring
 
-Buzzsynx should expose health endpoints.
+Observability should help detect unexpected inventory conditions.
+
+Examples:
+
+```text
+Stock balance changed
+        ↓
+Movement recorded
+        ↓
+Transaction committed
+        ↓
+Expected balance verified
+```
+
+Potential anomalies:
+
+* Unexpected negative stock
+* Duplicate movement
+* Missing movement
+* Failed transaction
+* Unusual adjustment frequency
+* Cross-store access attempt
+
+Observability should detect these conditions; the database and application transaction rules remain responsible for enforcing inventory correctness.
+
+---
+
+# 32. AI Observability
+
+AI is an intelligence layer, not an authoritative business transaction engine.
+
+AI operations should be monitored for:
+
+* Request count
+* Success/failure rate
+* Provider
+* Model
+* Latency
+* Token usage where available
+* Estimated cost where available
+* Timeout events
+* Rate limits
+* Retry events
+* Output validation failures
+* Job failures
+* Prompt/configuration version
 
 Example:
 
 ```text
-GET /api/health
+AI Job
+  ↓
+Data Retrieval
+  ↓
+Model Provider
+  ↓
+Response
+  ↓
+Validation
+  ↓
+Insight Storage
 ```
 
-A basic health response might indicate:
+Failures should be identifiable at each stage.
+
+---
+
+# 33. AI Cost and Usage Monitoring
+
+AI usage may create variable operational cost.
+
+Where supported, monitor:
+
+```text
+Requests
+Tokens
+Estimated Cost
+Provider
+Model
+Feature
+Tenant
+Store
+```
+
+Tenant-level usage data may later support:
+
+* AI quotas
+* Subscription limits
+* Usage-based billing
+* Cost alerts
+
+Detailed tenant-level usage should generally be stored as business/usage data rather than creating excessive high-cardinality infrastructure metrics.
+
+---
+
+# 34. Analytics and Reports Observability
+
+Analytics should primarily operate as a read/aggregation path.
+
+Monitor:
+
+* Dashboard query latency
+* Report generation time
+* Failed report jobs
+* Large-query behavior
+* Export failures
+* Queue backlog
+* Generated file failures
+
+Long-running reports should be asynchronous.
+
+Example:
+
+```text
+Report Request
+     ↓
+Create Job
+     ↓
+BullMQ
+     ↓
+Worker
+     ↓
+Generate Report
+     ↓
+Store File
+     ↓
+Notify User
+```
+
+A report failure should not affect POS transactions.
+
+---
+
+# 35. Notification Observability
+
+Notifications may include:
+
+* Email
+* WhatsApp
+* Other supported channels in the future
+
+Track:
+
+```text
+notification.created
+notification.sent
+notification.failed
+notification.retry
+```
+
+Monitor:
+
+* Provider failures
+* Retry counts
+* Delivery status where available
+* Queue backlog
+* Provider latency
+
+Notification failure must not normally fail the originating business transaction.
+
+---
+
+# 36. Health Checks
+
+Buzzsynx should expose health endpoints.
+
+Recommended:
+
+```text
+GET /api/health/live
+GET /api/health/ready
+```
+
+A basic liveness response:
 
 ```json
 {
@@ -829,21 +1262,22 @@ A basic health response might indicate:
 }
 ```
 
-A deeper readiness check can verify dependencies.
+Readiness may evaluate critical dependencies.
+
+Example:
 
 ```text
 Application
    ├── PostgreSQL ✓
    ├── Redis ✓
-   ├── Queue ✓
-   └── External Dependencies
+   └── Required Configuration ✓
 ```
+
+Health checks should not expose sensitive infrastructure information publicly.
 
 ---
 
-# 28. Liveness vs Readiness
-
-These checks should have different purposes.
+# 37. Liveness vs Readiness
 
 ## Liveness
 
@@ -851,40 +1285,38 @@ Answers:
 
 > Is the process alive?
 
-Example:
-
 ```text
-GET /health/live
+GET /api/health/live
 ```
+
+Liveness should remain lightweight and should not fail merely because a downstream dependency is temporarily unavailable.
+
+---
 
 ## Readiness
 
 Answers:
 
-> Can this instance safely receive traffic?
-
-Example:
+> Can this instance safely receive the traffic it is responsible for?
 
 ```text
-GET /health/ready
+GET /api/health/ready
 ```
 
-A process may be alive but not ready.
-
-For example:
+Example:
 
 ```text
 Application Process: Running
 PostgreSQL: Unavailable
 ```
 
-The process is alive, but it may not be ready to serve business requests.
+The process may be alive but not ready to receive normal business traffic.
 
 ---
 
-# 29. Dependency Health
+# 38. Dependency Health
 
-Buzzsynx should monitor critical dependencies:
+Critical dependencies should have operational health visibility.
 
 ```text
 PostgreSQL
@@ -893,33 +1325,45 @@ BullMQ
 AI Provider
 Payment Provider
 Email Provider
-Object/File Storage
+File Storage
 ```
 
-Dependency failures should be visible.
+Dependencies should be classified as:
 
-The system should also define whether a dependency is:
+```text
+Critical
+Degraded
+Optional
+```
 
-* Critical
-* Degraded
-* Optional
+For example:
+
+| Dependency       | Core POS Impact                     |
+| ---------------- | ----------------------------------- |
+| PostgreSQL       | Critical                            |
+| Redis            | Should not be authoritative         |
+| BullMQ           | Async functionality degraded        |
+| AI Provider      | AI functionality degraded           |
+| Email Provider   | Notification functionality degraded |
+| Payment Provider | Payment method may be unavailable   |
+| File Storage     | Reports/files may be degraded       |
+
+This classification should be reflected in alerts and degraded-mode behavior.
 
 ---
 
-# 30. Degraded Mode
+# 39. Graceful Degradation
 
-Not every dependency failure should bring down the entire platform.
+Not every dependency failure should bring down Buzzsynx.
 
 Example:
 
 ```text
 AI Provider Down
        ↓
+AI insights unavailable
+       ↓
 Core POS continues
-       ↓
-Sales continue
-       ↓
-AI insights temporarily unavailable
 ```
 
 Similarly:
@@ -927,21 +1371,27 @@ Similarly:
 ```text
 Email Provider Down
        ↓
-Business transaction continues
-       ↓
 Email job retries
+       ↓
+Business transaction remains successful
 ```
 
-The architecture should prefer graceful degradation where possible.
+However, degradation must never bypass core business integrity or security controls.
 
 ---
 
-# 31. Distributed Tracing
+# 40. Distributed Tracing
 
-As Buzzsynx grows, distributed tracing can help understand request flow across:
+Buzzsynx starts as a modular monolith, so full distributed tracing is not mandatory from day one.
+
+Tracing should be introduced progressively when application complexity or production diagnosis justifies it.
+
+Potential future trace:
 
 ```text
 Frontend
+   ↓
+Nginx
    ↓
 Express
    ↓
@@ -951,66 +1401,70 @@ PostgreSQL
    ↓
 Redis
    ↓
-Queue
+BullMQ
    ↓
 Worker
    ↓
 External Provider
 ```
 
-Tracing should be introduced when the system's complexity makes it useful.
-
-OpenTelemetry can be considered for standardized instrumentation.
+**OpenTelemetry** can be considered as the standardized tracing/instrumentation layer when needed.
 
 ---
 
-# 32. Trace Example
+# 41. Trace Example
 
-A sale request could appear as:
+A future sale trace might resemble:
 
 ```text
 Trace: sale_abc123
 
-API Request                  10ms
- ├── Authentication           3ms
- ├── Tenant Resolution        2ms
- ├── Product Validation       8ms
- ├── Stock Validation         12ms
- ├── Payment                 180ms
- ├── Database Transaction     25ms
- └── Response                 4ms
+API Request              12ms
+ ├── Authentication       3ms
+ ├── Tenant Context       2ms
+ ├── Product Validation   8ms
+ ├── Stock Validation    12ms
+ ├── DB Transaction      25ms
+ └── Response             4ms
 ```
 
-This immediately identifies the slowest portion of the workflow.
+External payment-provider interaction should be represented separately because it is outside the PostgreSQL transaction.
+
+Tracing should help identify slow components without exposing sensitive data.
 
 ---
 
-# 33. Frontend Observability
+# 42. Frontend Observability
 
-Frontend monitoring should capture:
+Frontend monitoring should eventually capture:
 
 * JavaScript errors
-* Failed API requests
-* Page performance
 * Route errors
+* Failed API requests
 * Client-side crashes
 * Important user-flow failures
+* Page performance
 
-Particular attention should be given to:
+Important flows include:
 
-* Login
-* Dashboard
-* Product search
-* POS
-* Payment
-* Reports
-* AI interface
+```text
+Login
+Dashboard
+Product Search
+POS
+Payment
+Inventory
+Reports
+AI
+```
+
+Frontend observability should include release/version information so regressions can be associated with deployments.
 
 ---
 
-# 34. Nginx & Infrastructure Observability
+# 43. Nginx Observability
 
-Nginx should expose or log:
+Nginx should provide operational visibility into:
 
 * Request count
 * HTTP status
@@ -1018,88 +1472,108 @@ Nginx should expose or log:
 * Upstream failures
 * Connection errors
 * Rate limiting
-* TLS/HTTPS issues
+* TLS/HTTPS problems
 
-Infrastructure should eventually monitor:
+Nginx logs should contain enough information to correlate requests with the application request ID where practical.
 
+---
+
+# 44. Container and Infrastructure Observability
+
+Target deployment components may include:
+
+```text
+Next.js
+Express
+Worker
+Nginx
+PostgreSQL
+Redis
+```
+
+Depending on deployment architecture, PostgreSQL and Redis may eventually be managed services rather than application containers.
+
+Monitor:
+
+* Container/process health
+* Restart count
 * CPU
 * Memory
 * Disk
 * Network
-* Container health
-* Container restarts
-
----
-
-# 35. Container Observability
-
-Each container should have predictable behavior.
-
-Example:
-
-```text
-next
-express
-worker
-postgres
-redis
-nginx
-```
-
-Monitor:
-
-* Container status
-* Restart count
-* Resource usage
-* Health check status
-* Logs
+* Health status
 * Startup failures
+* Resource exhaustion
 
-Repeated container restarts should generate an alert.
+Repeated restarts should be investigated and may trigger alerts.
 
 ---
 
-# 36. Alerting Strategy
+# 45. AWS Observability
+
+AWS is the target deployment environment.
+
+Cloud infrastructure observability may include:
+
+* Compute health
+* Load balancer health
+* Network errors
+* Storage usage
+* Database health
+* Redis health
+* Container/process health
+* Deployment events
+* Resource utilization
+
+**AWS CloudWatch** can be used for infrastructure-level monitoring where appropriate.
+
+CloudWatch is a target tooling choice, not an assumption that the entire AWS monitoring stack is already implemented.
+
+---
+
+# 46. Alerting Strategy
 
 Alerts should be actionable.
 
-Bad alert:
+Bad:
 
 > Something happened.
 
-Good alert:
+Better:
 
-> Production API 5xx rate has exceeded the defined threshold for the configured evaluation period.
+> Production API 5xx error rate exceeded the configured threshold for the evaluation period.
 
-Potential alerts:
+Potential critical alerts:
 
-### Critical
-
-* Application unavailable
-* Database unavailable
-* High API error rate
-* Payment failures above threshold
+* API unavailable
+* PostgreSQL unavailable
+* Database connection exhaustion
+* Severe API error rate
+* Critical payment failure pattern
 * Cross-tenant security event
 * Critical worker failure
 * Disk exhaustion
-* Database connection exhaustion
+* Queue backlog exceeding operational limits
 
-### Warning
+Potential warnings:
 
 * Increasing queue backlog
-* Slow API response
-* High Redis memory
-* AI provider failure rate increasing
+* Increased API latency
 * Increased database latency
-* High resource utilization
+* Redis memory pressure
+* AI provider failures
+* Worker retry rate increasing
+* Resource utilization approaching limits
+
+Actual thresholds should be established from real production baselines.
 
 ---
 
-# 37. Alert Fatigue
+# 47. Alert Fatigue
 
-Buzzsynx should avoid generating alerts for every small anomaly.
+Not every anomaly should generate an alert.
 
-Alerts should generally satisfy:
+An alert should generally be:
 
 ```text
 Actionable
@@ -1109,15 +1583,22 @@ Relevant
 Meaningful
 ```
 
-If an alert does not require investigation or action, it may be better represented as a dashboard metric.
+If an event does not require immediate investigation, it may be better represented as:
+
+* Dashboard information
+* Log
+* Metric
+* Scheduled report
+
+Alert thresholds should be reviewed as the system matures.
 
 ---
 
-# 38. Audit Logs vs Application Logs
+# 48. Audit Logs vs Application Logs
 
-These systems have different purposes.
+These systems serve different purposes.
 
-### Application Log
+## Application Log
 
 Technical event:
 
@@ -1125,77 +1606,86 @@ Technical event:
 inventory.service.updateStock failed
 ```
 
-### Audit Log
+Purpose:
+
+> Help engineers understand system behavior.
+
+---
+
+## Audit Event
 
 Business event:
 
 ```text
-User X adjusted inventory for Product Y
+User adjusted inventory for Product X
 ```
 
-Application logs help engineers.
+Purpose:
 
-Audit logs help businesses and administrators investigate important actions.
+> Help authorized users investigate important business actions.
 
-Both should exist where required.
+Audit logs should be generated for security-sensitive and business-critical actions.
 
 ---
 
-# 39. Audit Event Structure
+# 49. Audit Event Structure
 
 A business audit event may contain:
 
 ```json
 {
   "tenantId": "tenant_123",
+  "storeId": "store_001",
   "userId": "user_456",
   "action": "INVENTORY_ADJUSTED",
-  "resource": "PRODUCT",
+  "resourceType": "PRODUCT",
   "resourceId": "product_789",
+  "requestId": "req_123",
   "timestamp": "2026-09-25T10:30:00Z"
 }
 ```
 
-Only appropriate business information should be stored.
+For sensitive business changes, additional information may include:
+
+```text
+previousValue
+newValue
+reason
+```
+
+Only necessary information should be retained.
 
 ---
 
-# 40. Observability for Multi-Tenancy
+# 50. Important Auditable Business Actions
 
-Operational monitoring should support two levels.
+Examples include:
 
-## Platform Level
+```text
+User / Membership Changes
+Role / Permission Changes
+Product Changes
+Price Changes
+Inventory Adjustments
+Purchasing / Receiving
+Sales
+Returns
+Refunds
+Payment State Changes
+Store Configuration Changes
+Tenant Configuration Changes
+Sensitive Administrative Actions
+```
 
-Used by authorized platform operators.
+Not every read operation requires an audit event.
 
-Examples:
-
-* Total API traffic
-* Overall error rate
-* Infrastructure health
-* Queue health
-* Database health
-* Aggregate system metrics
-
-## Tenant Level
-
-Used by authorized tenant administrators.
-
-Examples:
-
-* Their sales
-* Their inventory events
-* Their operational errors
-* Their AI usage
-* Their business metrics
-
-Platform and tenant observability data must remain appropriately isolated.
+Audit requirements should be based on business importance, security risk, and compliance requirements.
 
 ---
 
-# 41. Performance Baselines
+# 51. Performance Baselines
 
-Before production release, establish baseline measurements for important workflows.
+Before production release, establish baseline measurements for critical workflows.
 
 Examples:
 
@@ -1206,247 +1696,240 @@ Dashboard Load
 POS Product Search
 POS Sale
 Inventory Update
-Purchase Creation
+Purchase / Receiving
 Report Generation
-AI Request
+AI Insight Generation
 ```
 
-Baseline measurements provide a reference for detecting regressions.
+Baselines should be based on realistic application behavior and representative workloads.
+
+They should be used to identify regressions rather than treated as permanent universal limits.
 
 ---
 
-# 42. Slow Request Detection
+# 52. Slow Request Detection
 
-Buzzsynx should identify requests exceeding defined latency thresholds.
+Buzzsynx should identify unusually slow requests.
+
+A slow-request log may include:
+
+```text
+endpoint
+durationMs
+requestId
+tenantId
+storeId
+userId
+database duration
+errorCode
+```
 
 Example:
 
 ```text
 Normal
-< threshold
+   ↓
+Expected latency
 
 Slow
-threshold → higher threshold
+   ↓
+Above operational threshold
 
 Critical
-> higher threshold
+   ↓
+Severe or sustained latency
 ```
 
-The actual thresholds should be based on real application behavior rather than arbitrary numbers.
-
-Slow requests should include:
-
-* Endpoint
-* Duration
-* Request ID
-* Tenant ID where appropriate
-* Database/query information where available
-* Error information if applicable
+Thresholds should be defined from actual production behavior.
 
 ---
 
-# 43. Deployment Observability
+# 53. Deployment Observability
 
 Every deployment should be identifiable.
 
-Logs and errors should include:
+Operational signals should include:
 
 ```text
-application version
+applicationVersion
 release
-commit SHA
+commitSha
 environment
-deployment timestamp
+deploymentTimestamp
 ```
-
-This allows questions such as:
-
-> Did this issue start after the latest deployment?
 
 Example:
 
 ```text
-Release: v1.4.0
+Release: v0.5.0
 Commit: abc123
 Environment: production
 ```
 
+This allows incident investigation to determine whether a problem appeared after a particular deployment.
+
 ---
 
-# 44. Release Correlation
+# 54. Release Correlation
 
-When a new release is deployed, monitor:
+After deployment, monitor:
 
 ```text
-Before Deployment
-        ↓
+Previous Baseline
+       ↓
 Deployment
-        ↓
+       ↓
 Error Rate
-        ↓
+       ↓
 Latency
-        ↓
+       ↓
 Database Errors
-        ↓
+       ↓
 Queue Health
-        ↓
+       ↓
 Business Metrics
 ```
 
-A sudden increase in errors after deployment should be detectable.
+A significant regression after deployment should be detectable through observability signals.
 
 ---
 
-# 45. Incident Investigation Flow
+# 55. Incident Investigation Flow
 
 When a production issue occurs:
 
 ```text
 Alert
- ↓
+  ↓
 Identify affected component
- ↓
-Check timestamp
- ↓
+  ↓
+Identify time window
+  ↓
 Find request / correlation ID
- ↓
+  ↓
 Inspect logs
- ↓
+  ↓
 Inspect metrics
- ↓
-Inspect traces
- ↓
+  ↓
+Inspect traces where available
+  ↓
 Inspect database / queue state
- ↓
+  ↓
 Identify root cause
- ↓
+  ↓
 Mitigate
- ↓
+  ↓
 Verify recovery
- ↓
+  ↓
 Document incident
+  ↓
+Improve system
 ```
+
+The goal is to move from:
+
+> “Something is broken.”
+
+to:
+
+> “This specific component failed during this specific operation, affecting this scope, after this event.”
 
 ---
 
-# 46. Incident Severity
+# 56. Incident Severity
 
-A simple severity model can be used.
+A simple severity model may be used.
 
-### SEV-1
+## SEV-1
 
-Critical production outage or severe security/data-integrity issue.
+Critical production outage or severe security/data-integrity incident.
 
-### SEV-2
+## SEV-2
 
 Major business functionality significantly affected.
 
-### SEV-3
+## SEV-3
 
-Limited functionality affected with available workaround.
+Limited functionality affected with an available workaround.
 
-### SEV-4
+## SEV-4
 
 Minor issue or low-impact defect.
 
-Severity should be based on actual business impact.
+Severity should be determined by actual business and operational impact.
 
 ---
 
-# 47. Observability Data Retention
+# 57. Observability Data Retention
 
 Observability data should have defined retention policies.
 
-Different data types may require different retention:
+Different data categories may require different retention:
 
 ```text
 Application Logs
 Metrics
 Traces
-Audit Logs
+Audit Events
 Security Events
 Payment Events
 ```
 
-Retention should balance:
+Retention decisions should balance:
 
-* Debugging needs
-* Compliance requirements
-* Storage cost
+* Debugging requirements
+* Security
 * Privacy
+* Storage cost
 * Business requirements
+* Applicable legal/compliance requirements
+
+Audit data should not automatically use the same retention policy as technical logs.
 
 ---
 
-# 48. Privacy
+# 58. Observability Security
 
-Observability systems themselves contain potentially sensitive information.
+Observability infrastructure itself must be secured.
 
-Therefore:
+Requirements include:
 
-* Restrict access.
-* Avoid unnecessary personal data.
-* Mask sensitive values.
-* Encrypt data where appropriate.
-* Define retention.
-* Review third-party observability access.
-* Ensure tenant data is not accidentally exposed through operational dashboards.
+* Restrict access
+* Use role-based access
+* Protect tenant-level dashboards
+* Encrypt data where appropriate
+* Mask sensitive values
+* Avoid public exposure of monitoring systems
+* Protect monitoring credentials
+* Define retention
+* Review third-party observability access
+* Prevent cross-tenant data exposure
 
----
-
-# 49. Observability During Development
-
-Observability should not be postponed until production.
-
-During development:
-
-* Use structured logs.
-* Use request IDs.
-* Log important business events.
-* Monitor database queries.
-* Monitor queue jobs.
-* Monitor AI operations.
-* Verify error handling.
-
-The goal is to make production observability an extension of development practices rather than a separate project.
+Observability must never become an unintended data-leakage channel.
 
 ---
 
-# 50. Recommended Tooling
+# 59. Development Environment
 
-Initial tooling can remain simple.
+Observability should be implemented progressively during development.
 
-### Application Errors
+Development should already use:
 
-**Sentry**
+* Structured logs
+* Request IDs
+* Error handling
+* Database diagnostics
+* Queue diagnostics
+* Worker logging
+* AI operation logging where applicable
 
-### Cloud/Infrastructure Monitoring
-
-**AWS CloudWatch**
-
-### Logs
-
-Structured application logs.
-
-### Metrics
-
-Application and infrastructure metrics.
-
-### Tracing
-
-**OpenTelemetry** when tracing complexity justifies it.
-
-### Queue Monitoring
-
-BullMQ-compatible monitoring where required.
-
-The exact tooling may evolve without changing the observability principles.
+Production observability should therefore be an extension of development practices rather than a separate last-minute project.
 
 ---
 
-# 51. Observability Environment Strategy
+# 60. Environment Separation
 
-Different environments should be distinguishable.
+Observability must distinguish:
 
 ```text
 development
@@ -1454,7 +1937,7 @@ staging
 production
 ```
 
-Each event should identify its environment.
+Every event should identify its environment.
 
 Example:
 
@@ -1464,115 +1947,533 @@ environment=production
 
 Production alerts must not be confused with development or staging events.
 
+Separate credentials, dashboards, and alert policies should be used where practical.
+
 ---
 
-# 52. Observability Checklist
+# 61. Recommended Tooling
 
-## Logging
+The initial tooling should remain intentionally simple.
 
-* [ ] Structured logging
-* [ ] Log levels
-* [ ] Request IDs
-* [ ] Correlation IDs
-* [ ] Tenant context
-* [ ] Error context
-* [ ] Sensitive data filtering
+## Application Logging
 
-## Error Tracking
+**Pino / pino-http**
 
-* [ ] Backend error tracking
-* [ ] Frontend error tracking
-* [ ] Release tracking
-* [ ] Error classification
+Already aligned with the backend architecture.
+
+---
+
+## Application Error Monitoring
+
+**Sentry**
+
+Target option for centralized application/frontend error tracking.
+
+---
+
+## Infrastructure Monitoring
+
+**AWS CloudWatch**
+
+Target option for AWS infrastructure and service monitoring.
+
+---
 
 ## Metrics
 
-* [ ] API metrics
+Application and infrastructure metrics.
+
+A dedicated metrics stack can be introduced when operational scale justifies it.
+
+---
+
+## Tracing
+
+**OpenTelemetry**
+
+Target option when tracing complexity justifies standardized instrumentation.
+
+---
+
+## Queue Monitoring
+
+BullMQ-compatible monitoring and operational dashboards.
+
+Tooling may evolve without changing the underlying observability architecture.
+
+---
+
+# 62. Observability and Caching / Queues
+
+Observability must align with the caching and asynchronous architecture.
+
+Core principle:
+
+```text
+PostgreSQL
+    ↓
+Business Truth
+
+Redis
+    ↓
+Cache / Temporary State / Coordination
+
+BullMQ
+    ↓
+Asynchronous Execution
+```
+
+Therefore:
+
+```text
+Redis Failure
+≠
+Business Data Loss
+
+Worker Failure
+≠
+Business Transaction Failure
+
+AI Failure
+≠
+POS Failure
+
+Email Failure
+≠
+Sale Failure
+```
+
+Observability should make these boundaries visible.
+
+---
+
+# 63. Critical Event Flow
+
+For an important business event:
+
+```text
+Business Request
+      ↓
+PostgreSQL Transaction
+      ↓
+Business Data Updated
+      ↓
+Audit / Outbox Event
+      ↓
+COMMIT
+      ↓
+Async Processing
+      ↓
+BullMQ
+      ↓
+Worker
+      ↓
+Analytics / AI / Notification / Cache Invalidation
+```
+
+Observability should allow engineers to determine which stage failed.
+
+---
+
+# 64. Failure Scenario: Redis Unavailable
+
+Expected operational visibility:
+
+```text
+Redis
+  ↓
+Unavailable
+
+Cache
+  ↓
+Fallback where safe
+
+PostgreSQL
+  ↓
+Core transactions continue
+
+BullMQ
+  ↓
+Queue processing degraded
+```
+
+The incident should be visible through:
+
+* Redis health
+* Cache behavior
+* Queue health
+* Worker health
+* API latency
+
+---
+
+# 65. Failure Scenario: AI Provider Unavailable
+
+Expected behavior:
+
+```text
+AI Provider
+     ↓
+Unavailable
+     ↓
+AI Job Retry
+     ↓
+Failure / Delayed Job
+```
+
+Meanwhile:
+
+```text
+POS
+Inventory
+Purchasing
+Sales
+```
+
+continue according to their normal workflows.
+
+AI failure should be observable without creating false POS failure alerts.
+
+---
+
+# 66. Failure Scenario: Payment Provider Failure
+
+Example:
+
+```text
+Payment Attempt
+      ↓
+Provider Failure
+      ↓
+Payment Status Updated
+      ↓
+Retry / Reconciliation
+```
+
+The system should distinguish:
+
+```text
+Business Sale Failure
+Payment Failure
+Provider Failure
+Webhook Failure
+```
+
+rather than reporting all of them as one generic application error.
+
+---
+
+# 67. Failure Scenario: Worker Failure
+
+Example:
+
+```text
+Business Transaction
+      ↓
+COMMIT
+      ↓
+Async Job
+      ↓
+Worker Failure
+```
+
+The business transaction remains committed.
+
+The queue system should provide:
+
+```text
+Retry
+Failure visibility
+Job ID
+Attempt count
+Error information
+```
+
+For important business events, the database-backed outbox provides an additional reliability boundary.
+
+---
+
+# 68. Multi-Store Observability
+
+Because a tenant may contain multiple stores:
+
+```text
+Tenant
+ ├── Store A
+ ├── Store B
+ └── Store C
+```
+
+Operational and business events should include `storeId` when the event is store-specific.
+
+Example:
+
+```text
+tenantId = tenant_001
+storeId  = store_002
+saleId   = sale_123
+```
+
+This allows:
+
+* Store-specific troubleshooting
+* Store-specific business metrics
+* Store-specific inventory analysis
+* Store-specific operational alerts
+
+Cross-store aggregation should remain tenant-scoped.
+
+---
+
+# 69. Observability for Security Events
+
+Security-sensitive events should be observable.
+
+Examples:
+
+```text
+Authentication failure
+Authorization failure
+Cross-store access attempt
+Cross-tenant access attempt
+Rate-limit violation
+Invalid webhook signature
+Repeated token failures
+Suspicious administrative action
+```
+
+Security events should be handled separately from ordinary application noise where appropriate.
+
+Sensitive security data must still be protected.
+
+---
+
+# 70. Observability for Industry Capabilities
+
+The observability architecture should support future industry capabilities without creating separate monitoring architectures.
+
+Example:
+
+```text
+Shared Observability
+       ↓
+Common Business Engine
+       ↓
+Industry Capability
+       ├── Supermarket
+       ├── Pharmacy
+       ├── Clothing
+       └── Restaurant
+```
+
+The initial implementation focuses on supermarket/grocery.
+
+Future industries should reuse:
+
+* Request correlation
+* Tenant/store context
+* Logs
+* Metrics
+* Audit
+* Queue monitoring
+* Error handling
+* Health checks
+
+Industry-specific events can be added where necessary.
+
+---
+
+# 71. Avoiding Observability Over-Engineering
+
+Buzzsynx should not attempt to implement every observability technology immediately.
+
+Initial priorities:
+
+```text
+1. Structured Logs
+2. Request IDs
+3. Error Handling
+4. Health Checks
+5. Database Monitoring
+6. Redis Monitoring
+7. Queue / Worker Monitoring
+8. Critical Business Audit
+9. Basic Application Metrics
+10. Production Alerts
+```
+
+Later, when justified:
+
+```text
+Sentry
+Advanced Metrics Platform
+OpenTelemetry
+Distributed Tracing
+Advanced Dashboards
+Advanced Cost Monitoring
+```
+
+The objective is useful observability, not maximum tooling.
+
+---
+
+# 72. Testing Observability
+
+Observability itself should be tested.
+
+## Logging
+
+* Structured log generation
+* Request ID propagation
+* Sensitive-field redaction
+* Error logging
+
+## Tenant / Store Isolation
+
+* Correct tenant context
+* Correct store context
+* No cross-tenant operational exposure
+* No cross-store exposure
+
+## Health
+
+* Liveness behavior
+* Readiness behavior
+* Dependency failure behavior
+
+## Queues
+
+* Job creation
+* Job failure
+* Retry
+* Duplicate job
+* Worker restart
+* Queue backlog
+
+## Audit
+
+* Important business actions create audit events
+* Correct user context
+* Correct tenant/store context
+* Protected audit access
+
+## Critical Workflows
+
+* POS transaction rollback
+* Payment failure
+* Inventory failure
+* Async event failure
+* Outbox replay where implemented
+
+---
+
+# 73. Observability Definition of Done
+
+Observability architecture is considered ready for production when the following requirements are implemented according to the project's current deployment stage:
+
+### Logging
+
+* [ ] Structured application logging
+* [ ] Consistent log levels
+* [ ] Request IDs
+* [ ] Correlation IDs where needed
+* [ ] Tenant/store context where appropriate
+* [ ] Sensitive-field redaction
+* [ ] Release/environment information
+
+### Error Monitoring
+
+* [ ] Centralized backend error handling
+* [ ] Frontend error monitoring where deployed
+* [ ] Error classification
+* [ ] Stable error codes
+* [ ] Production error visibility
+
+### Metrics
+
+* [ ] API request metrics
+* [ ] API error metrics
+* [ ] Latency metrics
 * [ ] Database metrics
 * [ ] Redis metrics
 * [ ] Queue metrics
 * [ ] Worker metrics
-* [ ] AI metrics
-* [ ] Payment metrics
-* [ ] Business metrics
+* [ ] Critical business metrics
 
-## Health
+### Health
 
 * [ ] Liveness endpoint
 * [ ] Readiness endpoint
-* [ ] Database health
+* [ ] PostgreSQL health
 * [ ] Redis health
 * [ ] Worker health
-* [ ] Dependency health
+* [ ] Critical dependency visibility
 
-## Tracing
+### POS / Inventory / Payments
 
-* [ ] Request correlation
-* [ ] Async correlation
-* [ ] Trace support when required
+* [ ] POS failures traceable
+* [ ] Inventory movements observable
+* [ ] Payment failures observable
+* [ ] Webhook failures observable
+* [ ] Critical transactions auditable
 
-## Audit
+### Async Processing
 
-* [ ] Important business actions logged
+* [ ] Queue backlog visible
+* [ ] Failed jobs visible
+* [ ] Retry behavior visible
+* [ ] Worker failures visible
+* [ ] Critical async events recoverable
+
+### Security / Audit
+
+* [ ] Important business actions audited
 * [ ] Tenant context captured
-* [ ] User context captured
+* [ ] Store context captured where relevant
 * [ ] Audit access protected
+* [ ] Security events observable
 
-## Alerting
+### Deployment
 
-* [ ] Critical alerts
-* [ ] Warning alerts
-* [ ] Queue alerts
-* [ ] Database alerts
-* [ ] Application alerts
-* [ ] Infrastructure alerts
+* [ ] Release/version identifiable
+* [ ] Commit SHA identifiable
+* [ ] Environment identifiable
+* [ ] Deployment-related regressions detectable
 
----
+### Operations
 
-# 53. Definition of Done
+* [ ] Critical alerts configured
+* [ ] Incident investigation workflow defined
+* [ ] Retention policies defined
+* [ ] Observability access controlled
 
-Observability is considered complete when:
-
-* [ ] Important application events are logged.
-* [ ] Logs are structured and searchable.
-* [ ] Requests can be correlated using request IDs.
-* [ ] Errors are centrally captured.
-* [ ] Critical infrastructure dependencies are monitored.
-* [ ] API performance can be measured.
-* [ ] Database health can be monitored.
-* [ ] Redis health can be monitored.
-* [ ] Queue and worker health can be monitored.
-* [ ] AI operations can be measured.
-* [ ] Payment failures can be identified.
-* [ ] Business-critical events can be audited.
-* [ ] Health endpoints exist.
-* [ ] Critical alerts are configured.
-* [ ] Sensitive information is protected.
-* [ ] Tenant context is handled safely.
-* [ ] Deployment versions can be correlated with incidents.
-* [ ] Production issues can be investigated systematically.
+This checklist describes production readiness requirements; it does not imply that every item is already implemented.
 
 ---
 
-# 54. Final Observability Model
+# 74. Final Observability Model
 
-Buzzsynx should provide visibility across five dimensions:
+Buzzsynx observability can be represented as:
 
 ```text
-                    OBSERVABILITY
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-       Logs           Metrics           Traces
-        │                │                │
-        └────────────────┼────────────────┘
-                         │
-                    Health Checks
-                         │
-                    Audit Events
+                         OBSERVABILITY
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+      Logs                 Metrics               Traces
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+                       Health Checks
+                              │
+                       Audit Events
+                              │
+                        Alerting
+                              │
+                         Operations
 ```
 
-Together they answer:
+Together these provide answers to:
 
 ```text
 What happened?
@@ -1585,18 +2486,24 @@ Where did it fail?
       ↓
 Is the system healthy?
       ↓
+Which tenant/store was affected?
+      ↓
+Which business operation was affected?
+      ↓
 Who performed the business action?
+      ↓
+Did the system recover?
 ```
 
 ---
 
-# 55. Final Principle
+# 75. Final Principle
 
-> **If we cannot see it, we cannot reliably operate it.**
+> **PostgreSQL owns business truth. Observability provides visibility into that truth and the systems operating around it.**
 
-Buzzsynx observability is therefore not just about collecting logs.
+Buzzsynx observability is not simply about collecting logs.
 
-It is about creating a complete operational feedback loop:
+It creates an operational feedback loop:
 
 ```text
 System
@@ -1613,7 +2520,7 @@ Alert
   ↓
 Investigate
   ↓
-Fix
+Mitigate
   ↓
 Verify
   ↓
@@ -1622,4 +2529,6 @@ Improve
 
 The ultimate goal is:
 
-> **When something goes wrong, we should be able to determine what happened, where it happened, which business operation was affected, which tenant was affected, why it happened, and whether the fix actually resolved the problem.**
+> **When something goes wrong, we should be able to determine what happened, where it happened, which tenant/store and business operation were affected, why it happened, what recovered successfully, and what still requires action.**
+
+**Buzzsynx — Observable by design, diagnosable in production, and trustworthy at scale.**
